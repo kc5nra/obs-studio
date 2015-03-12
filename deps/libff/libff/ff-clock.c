@@ -17,10 +17,67 @@
 #include "ff-clock.h"
 
 #include <libavutil/avutil.h>
+#include <libavutil/time.h>
+
 double ff_get_sync_clock(struct ff_clock *clock)
 {
 	return clock->sync_clock(clock->opaque);
 }
+
+int64_t ff_clock_start_time(struct ff_clock *clock)
+{
+	int64_t start_time = AV_NOPTS_VALUE;
+
+	pthread_mutex_lock(&clock->mutex);
+	if (clock->started)
+		start_time = clock->start_time;
+	pthread_mutex_unlock(&clock->mutex);
+
+	return start_time;
+}
+
+bool ff_clock_start(struct ff_clock *clock, enum ff_av_sync_type sync_type,
+		bool *abort)
+{
+	bool release = false;
+
+	if (clock->sync_type == sync_type && !clock->started) {
+		pthread_mutex_lock(&clock->mutex);
+		if (!clock->started) {
+			clock->start_time = av_gettime();
+			clock->started = true;
+		}
+		pthread_cond_signal(&clock->cond);
+		pthread_mutex_unlock(&clock->mutex);
+	} else {
+		while (!clock->started) {
+			bool aborted;
+			pthread_mutex_lock(&clock->mutex);
+			int64_t current_time = av_gettime() + 100;
+			struct timespec sleep_time = {
+				.tv_sec =  current_time / AV_TIME_BASE,
+				.tv_nsec = (current_time % AV_TIME_BASE) * 1000
+			};
+			pthread_cond_timedwait(&clock->cond, &clock->mutex,
+					&sleep_time);
+			// there is no way anyone can signal us
+			// since we are the only reference
+			if (clock->retain == 1)
+				release = true;
+			aborted = *abort;
+			pthread_mutex_unlock(&clock->mutex);
+
+			if (aborted)
+				return false;
+		}
+	}
+
+	if (release)
+		ff_clock_release(&clock);
+
+	return !release;
+}
+
 struct ff_clock *ff_clock_init(struct ff_clock *clock)
 {
 	clock = av_mallocz(sizeof(struct ff_clock));
