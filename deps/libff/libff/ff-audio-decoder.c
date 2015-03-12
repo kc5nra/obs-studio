@@ -49,6 +49,16 @@ static int decode_frame(struct ff_decoder *decoder,
 		while (packet->base.size > 0) {
 			int complete;
 
+			int64_t start_time =
+					ff_clock_start_time(decoder->clock);
+
+			if (start_time != AV_NOPTS_VALUE) {
+				if (ff_decoder_set_frame_drop_state(decoder,
+						start_time, packet->base.pts))
+					shrink_packet(packet,
+							packet->base.size);
+			}
+
 			packet_length = avcodec_decode_audio4(decoder->codec,
 				frame, &complete,
 				&packet->base);
