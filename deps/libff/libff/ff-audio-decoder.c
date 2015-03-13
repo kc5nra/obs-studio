@@ -86,6 +86,20 @@ static int decode_frame(struct ff_decoder *decoder,
 				return -1;
 			}
 		}
+
+		// We received a reset packet with a new clock
+		if (packet->clock != NULL) {
+			if (decoder->clock != NULL)
+				ff_clock_release(&decoder->clock);
+			decoder->clock = packet->clock;
+			av_free_packet(&packet->base);
+
+			// not a real packet, so try to get another packet
+			ret = packet_queue_get(&decoder->packet_queue,
+					packet, 1);
+			if (ret == FF_PACKET_FAIL)
+				return -1;
+		}
 	}
 }
 
@@ -113,6 +127,7 @@ static bool queue_frame(struct ff_decoder *decoder, AVFrame *frame,
 		av_frame_free(&queue_frame->frame);
 
 	queue_frame->frame = av_frame_clone(frame);
+	queue_frame->clock = ff_clock_retain(decoder->clock);
 
 	if (call_initialize)
 		ff_callbacks_frame_initialize(queue_frame, decoder->callbacks);
@@ -153,6 +168,9 @@ void *ff_audio_decoder_thread(void *opaque_audio_decoder)
 
 		av_free_packet(&packet.base);
 	}
+
+	if (decoder->clock != NULL)
+		ff_clock_release(&decoder->clock);
 
 	av_frame_free(&frame);
 	return NULL;
