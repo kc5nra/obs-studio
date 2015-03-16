@@ -12,16 +12,21 @@ if(WIN32)
 endif(WIN32)
 
 set(libff_HEADERS
+	#
 	libff/ff-callbacks.h
 	libff/ff-circular-queue.h
 	libff/ff-clock.h
+	libff/ff-list.h
 	libff/ff-frame.h
 	libff/ff-packet-queue.h
 	libff/ff-timer.h
-	#
+	# 
 	libff/ff-demuxer.h
 	#
-	libff/ff-decoder.h)
+	libff/ff-decoder.h
+	#
+	libff/ff-media-list.h
+	libff/ff-player.h)
 
 set(libff_SOURCES
 	libff/ff-callbacks.c
@@ -34,7 +39,10 @@ set(libff_SOURCES
 	#
 	libff/ff-decoder.c
 	libff/ff-audio-decoder.c
-	libff/ff-video-decoder.c)
+	libff/ff-video-decoder.c
+	#
+	libff/ff-media-list.c
+	libff/ff-player.c)
 
 add_library (libff STATIC
 	${libff_HEADERS}

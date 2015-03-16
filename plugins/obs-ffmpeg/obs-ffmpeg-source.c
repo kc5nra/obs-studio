@@ -20,6 +20,7 @@
 #include "obs-ffmpeg-compat.h"
 #include "obs-ffmpeg-formats.h"
 
+#include <libff/ff-media-list.h>
 #include <libff/ff-demuxer.h>
 
 #include <libswscale/swscale.h>
@@ -414,6 +415,27 @@ static void ffmpeg_source_update(void *data, obs_data_t *settings)
 			NULL, NULL, NULL, s);
 
 	ff_demuxer_open(s->demuxer, input, input_format);
+
+	struct ff_media_list list;
+	ff_media_list_init(&list);
+
+	ff_media_list_add(&list, "test1");
+	ff_media_list_add(&list, "test2");
+	ff_media_list_add(&list, "test3");
+	ff_media_list_add(&list, "test4");
+	ff_media_list_add(&list, "test5");
+	ff_media_list_add(&list, "test6");
+	ff_media_list_add(&list, "test7");
+	ff_media_list_add(&list, "test8");
+	ff_media_list_add(&list, "test9");
+
+	const struct ff_media_item *item = ff_media_list_curr_media_item(&list);
+	while (item != NULL) {
+		blog(LOG_DEBUG, "Media item %s", item->media_location);
+		item = ff_media_list_next_media_item(&list);
+	}
+	blog(LOG_DEBUG, "Finished media items");
+	
 }
 
 
