@@ -1,0 +1,37 @@
+
+player-start()
+	get first media
+	setup demuxer
+	setup callbacks from demuxer
+	start demuxer
+	start demuxer frame refresh
+
+player-refresh()
+	if (demuxer-garbage)
+		free-old-demuxers
+
+on-demuxer-finished-decoding()
+	lock media list
+	get next media
+	setup demuxer
+	setup callbacks from demuxer
+	add demuxer to chain
+	start demuxer
+	unlock media list
+
+on-demuxer-last-frame()
+	abort demuxer
+	pop demuxer
+	start demuxer frame refresh
+
+on-media-list-added()
+	
+
+on-media-list-removed()
+	lock media list
+	if removed item == current media
+		abort demuxer
+		remove callbacks
+		pop demuxer
+		if (cached-demuxer)
+	unlock media list
