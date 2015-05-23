@@ -821,9 +821,47 @@ static void cf_preprocess_define(struct cf_preprocessor *pp,
 			goto error;
 	}
 
+	bool concat = false;
+	bool concat_started = false;
 	while (cur_token->type != CFTOKEN_NEWLINE &&
-	       cur_token->type != CFTOKEN_NONE)
+		cur_token->type != CFTOKEN_NONE)
+	{
+		if (concat) {
+			if (cur_token->type == CFTOKEN_SPACETAB) {
+				cur_token++;
+				continue;
+			} else {
+				concat = false;
+				concat_started = false;
+			}
+		}
+
+		if (*cur_token->str.array == '#') {
+			if (!concat_started) {
+				concat_started = true;
+			} else {
+				// remove '##'
+				da_pop_back(def.tokens); 
+
+				if (cf_def_remtokens(&def, CFTOKEN_SPACETAB) == 0)
+					cf_adderror_expecting(pp, cur_token, "preceding token to concat");
+				concat = true;
+				concat_started = false;
+				cur_token++;
+				continue;
+			}
+		} else {
+			concat = false;
+			concat_started = false;
+		}
+
 		cf_def_addtoken(&def, cur_token++);
+	}
+
+	if (concat) {
+		cf_adderror_expecting(pp, cur_token, "following token to concat");
+		goto error;
+	}
 
 complete:
 	append_end_token(&def.tokens.da);

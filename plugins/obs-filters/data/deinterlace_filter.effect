@@ -179,7 +179,7 @@ float4 PSBlendRGBA(VertData v_in) : TARGET
 // Mr. Do Nothing
 float4 PSDeinterlaceMatrix(VertData v_in) : TARGET
 {
-	float4 yuv = image.Sample(textureSampler, v_in.uv);
+	float4 yuv = 
 	
 	yuv.xyz = clamp(yuv.xyz, color_range_min, color_range_max);
 
@@ -194,56 +194,32 @@ VertData VSDefault(VertData v_in)
 	return vert_out;
 }
 
-technique DrawYadifDiscard
-{
-	pass
-	{
-		vertex_shader = VSDefault(v_in);
-		pixel_shader  = PSYadifDiscardRGBA(v_in);
-	}
+#define TECHNIQUE(tech) \
+float4 VS ## tech ## Matrix(VertData v_in) : TARGET \
+{ \
+	float4 yuv = PS ## tech ## RGBA(v_in); \
+	yuv.xyz = clamp(yuv.xyz, color_range_min, color_range_max); \
+	return saturate(mul(float4(yuv.xyz, 1.0), color_matrix)); \
+} \
+technique Draw ## tech \
+{ \
+	pass \
+	{ \
+		vertex_shader = VSDefault(v_in); \
+		pixel_shader = PS ## tech ## RGBA(v_in); \
+	} \
+} \
+technique Draw ## tech ## Matrix \
+{ \
+	pass \
+	{ \
+		vertex_shader = VSDefault(v_in); \
+		pixel_shader = PS ## tech ## Matrix(v_in); \
+	} \
 }
 
-technique DrawYadif
-{
-	pass
-	{
-		vertex_shader = VSDefault(v_in);
-		pixel_shader  = PSYadifRGBA(v_in);
-	}
-}
-
-technique DrawLinear
-{
-	pass
-	{
-		vertex_shader = VSDefault(v_in);
-		pixel_shader  = PSLinearRGBA(v_in);
-	}
-}
-
-technique DrawDiscard
-{
-	pass
-	{
-		vertex_shader = VSDefault(v_in);
-		pixel_shader  = PSDiscardRGBA(v_in);
-	}
-}
-
-technique DrawBlend
-{
-	pass
-	{
-		vertex_shader = VSDefault(v_in);
-		pixel_shader  = PSBlendRGBA(v_in);
-	}
-}
-
-technique DrawMatrix
-{
-	pass
-	{
-		vertex_shader = VSDefault(v_in);
-		pixel_shader  = PSDeinterlaceMatrix(v_in);
-	}
-}
+TECHNIQUE(YadifDiscard);
+TECHNIQUE(Yadif);
+TECHNIQUE(Linear);
+TECHNIQUE(Discard);
+TECHNIQUE(Blend);

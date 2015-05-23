@@ -124,6 +124,24 @@ static inline void cf_def_addparam(struct cf_def *cfd, struct cf_token *param)
 	da_push_back(cfd->params, param);
 }
 
+static inline int cf_def_remtokens(struct cf_def *cfd, enum cf_token_type type)
+{
+	int removed = 0;
+	while (cfd->tokens.num)
+	{
+		struct cf_token *t = cfd->tokens.array + cfd->tokens.num - 1;
+		if (t->type == type) {
+			da_pop_back(cfd->tokens);
+			removed++;
+		}
+		else {
+			break;
+		}
+	}
+
+	return removed;
+}
+
 static inline void cf_def_addtoken(struct cf_def *cfd, struct cf_token *token)
 {
 	da_push_back(cfd->tokens, token);
