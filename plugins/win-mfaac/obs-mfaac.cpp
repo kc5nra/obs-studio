@@ -22,6 +22,7 @@ struct mfaac_encoder {
     int channels, sample_rate, bits_per_sample;
 
     ComPtr<IMFTransform> transform;
+    ComPtr<IMFSample> output_sample;
 
 	uint64_t total_samples;
 
@@ -29,6 +30,8 @@ struct mfaac_encoder {
 
 	uint8_t *packet_buffer;
 	int packet_buffer_size;
+    UINT16 header;
+    uint8_t header5[5];
 };
 
 bool mfaac_extra_data(void *data, uint8_t **extra_data, size_t *size);
@@ -86,6 +89,19 @@ fail:
     return hr;
 }
 
+static HRESULT CreateEmptySample(ComPtr<IMFSample> &sample, int length)
+{
+    HRESULT hr;
+    ComPtr<IMFMediaBuffer> mediaBuffer;
+
+    HRC(MFCreateSample(&sample));
+    HRC(MFCreateMemoryBuffer(length, &mediaBuffer));
+    HRC(sample->AddBuffer(mediaBuffer.Get()));
+    return S_OK;
+fail:
+    return hr;
+}
+
 static void *mfaac_create(obs_data_t *settings, obs_encoder_t *encoder)
 {
 	bool hasFdkHandle = false;
@@ -97,6 +113,9 @@ static void *mfaac_create(obs_data_t *settings, obs_encoder_t *encoder)
 
     ComPtr<IMFTransform> transform;
     ComPtr<IMFMediaType> inputType, outputType;
+    ComPtr<IMFMediaBuffer> outputBuffer;
+    ComPtr<IMFSample> outputSample;
+
     std::unique_ptr<mfaac_encoder> enc(new mfaac_encoder());
 
     if (!bytes_per_sec) {
@@ -134,6 +153,9 @@ static void *mfaac_create(obs_data_t *settings, obs_encoder_t *encoder)
 
 	enc->packet_buffer = (uint8_t *)bmalloc(enc->packet_buffer_size);
 
+    HRC(CreateEmptySample(outputSample, enc->packet_buffer_size));
+    enc->output_sample = outputSample;
+
 	blog(LOG_INFO, "mfaac_aac encoder created");
 	blog(LOG_INFO, "mfaac_aac bitrate: %d, channels: %d",
 			bitrate, enc->channels);
@@ -162,26 +184,7 @@ static void mfaac_destroy(void *data)
 
     delete data;
 
-
 	blog(LOG_INFO, "mfaac encoder destroyed");
-}
-
-static HRESULT CreateEmptySample(ComPtr<IMFSample> &sample, int length)
-{
-    HRESULT hr;
-    ComPtr<IMFMediaBuffer> mediaBuffer;
-
-    HRC(MFCreateSample(&sample));
-    HRC(MFCreateMemoryBuffer(length, &mediaBuffer));
-    HRC(sample->AddBuffer(mediaBuffer.Get()));
-    return S_OK;
-fail:
-    return hr;
-}
-
-static HRESULT GetOutputSample(ComPtr<IMFSample> &output)
-{
-
 }
 
 static bool mfaac_encode(void *data, struct encoder_frame *frame,
@@ -217,7 +220,7 @@ static bool mfaac_encode(void *data, struct encoder_frame *frame,
     sample.Reset();
     mediaBuffer.Reset();
 
-    HRC(CreateEmptySample(sample, enc->packet_buffer_size));
+    sample = enc->output_sample;
     HRC(sample->GetBufferByIndex(0, &mediaBuffer));
 
     MFT_OUTPUT_DATA_BUFFER output = { 0 };
@@ -244,7 +247,7 @@ static bool mfaac_encode(void *data, struct encoder_frame *frame,
 	packet->timebase_num = 1;
 	packet->timebase_den = enc->sample_rate;
 
-    return *received_packet = false;
+    return *received_packet = true;
 fail:
     return false;
 }
@@ -253,29 +256,33 @@ static bool mfaac_extra_data(void *data, uint8_t **extra_data, size_t *size)
 {
 	mfaac_encoder *enc = (mfaac_encoder *)data;
 
-    ComPtr<IMFMediaType> outputType;
-    enc->transform->GetOutputCurrentType(0, &outputType);
-    UINT32 userDataSize;
-    UINT8 *userData = nullptr;
-    HRESULT hr;
+    uint16_t *header = (uint16_t *) enc->header5;
 
-    HRC(outputType->GetBlobSize(MF_MT_USER_DATA, &userDataSize));
-    userData = new UINT8[userDataSize];
+#define SWAPU16(x) (x>>8) | (x<<8)
+    // LC Profile
+    // XXXX X... .... ....
+    *header  = 2 << 11;
+    // Sample Index (3=48, 4=44.1)
+    // .... .XXX X... ....
+    *header |= enc->sample_rate == 48000 ? 3 : 4 << 7;
+    // Channels
+    // .... .... .XXX X...
+    *header |= enc->channels << 3;
+    *header = SWAPU16(*header);
 
-    HRC(outputType->GetBlob(MF_MT_USER_DATA, userData, userDataSize, NULL));
-    *extra_data = userData;
-    *size = userDataSize;
+    // Extensions
+    header++;
+    *header = 0x2b7 << 5;
+    // LC Profile
+    *header |= 2;
+    *header = SWAPU16(*header);
 
-    HEAACWAVEINFO *aacWaveInfo = (HEAACWAVEINFO *) userData;
-    *extra_data = (UINT8 *)aacWaveInfo;
-	//*size = enc->info.confSize;
-	//*extra_data = enc->info.confBuf;
+    enc->header5[4] = 0;
+#undef SWAPU16
 
-	return true;
-fail:
-    if (userData)
-        delete[] userData;
-    return false;
+    *extra_data = enc->header5;
+    *size = 3;
+    return true;
 }
 
 static void mfaac_audio_info(void *data, struct audio_convert_info *info)
