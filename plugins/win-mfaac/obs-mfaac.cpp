@@ -11,32 +11,32 @@
 #include <Mferror.h>
 #include <mftransform.h>
 #include <wmcodecdsp.h>
-#include <wrl/client.h>
 
-using namespace Microsoft::WRL;
+#include <util/windows/ComPtr.hpp>
 
 struct mfaac_encoder {
 	obs_encoder_t *encoder;
 
 	int channels;
-	int sample_rate;
-	int bits_per_sample;
+	int sampleRate;
+	int bitsPerSample;
 
 	ComPtr<IMFTransform> transform;
-	ComPtr<IMFSample> output_sample;
+	ComPtr<IMFSample> outputSample;
 
 	uint64_t total_samples;
 
-	int frame_size_bytes;
+	int frameSizeBytes;
 
-	uint8_t *packet_buffer;
-	int packet_buffer_size;
+	uint8_t *packetBuffer;
+	int packetBufferSize;
+
 	uint8_t header[5];
 };
 
 static const char *mfaac_getname(void)
 {
-	return obs_module_text("Media Foundation AAC Encoder");
+	return obs_module_text("MFAACEnc");
 }
 
 static obs_properties_t *mfaac_properties(void *unused)
@@ -103,7 +103,7 @@ fail:
 static void *mfaac_create(obs_data_t *settings, obs_encoder_t *encoder)
 {
 	int bitrate = (int) obs_data_get_int(settings, "bitrate");
-	int bytes_per_sec = (bitrate * 1000) / 8;
+	int bytesPerSec = (bitrate * 1000) / 8;
 
 	HRESULT hr;
 
@@ -114,7 +114,7 @@ static void *mfaac_create(obs_data_t *settings, obs_encoder_t *encoder)
 
 	std::unique_ptr<mfaac_encoder> enc(new mfaac_encoder());
 
-	if (!bytes_per_sec) {
+	if (!bytesPerSec) {
 		blog(LOG_ERROR, "Invalid bitrate");
 		return NULL;
 	}
@@ -123,8 +123,8 @@ static void *mfaac_create(obs_data_t *settings, obs_encoder_t *encoder)
 	
 	audio_t *audio = obs_encoder_audio(encoder);
 	enc->channels = (int)audio_output_get_channels(audio);
-	enc->sample_rate = audio_output_get_sample_rate(audio);
-	enc->bits_per_sample = 16;
+	enc->sampleRate = audio_output_get_sample_rate(audio);
+	enc->bitsPerSample = 16;
 
 	if (enc->channels > 2) {
 		blog(LOG_ERROR, "Invalid channel count");
@@ -133,10 +133,10 @@ static void *mfaac_create(obs_data_t *settings, obs_encoder_t *encoder)
 
 	HRC(CoCreateInstance(CLSID_AACMFTEncoder, NULL, CLSCTX_INPROC_SERVER,
 			IID_PPV_ARGS(&transform)));
-	HRC(CreateMediaTypes(inputType, outputType, enc->sample_rate,
-			enc->channels, enc->bits_per_sample));
+	HRC(CreateMediaTypes(inputType, outputType, enc->sampleRate,
+			enc->channels, enc->bitsPerSample));
 	HRC(outputType->SetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND,
-			bytes_per_sec));
+			bytesPerSec));
 	HRC(transform->SetInputType(0, inputType.Get(), 0));
 	HRC(transform->SetOutputType(0, outputType.Get(), 0));
 
@@ -145,15 +145,15 @@ static void *mfaac_create(obs_data_t *settings, obs_encoder_t *encoder)
 	HRC(transform->ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM,
 			NULL));
 
-	enc->frame_size_bytes = 1024 * 2 * enc->channels;
-	enc->packet_buffer_size = enc->channels * 768;
-	if(enc->packet_buffer_size < 8192)
-		enc->packet_buffer_size = 8192;
+	enc->frameSizeBytes = 1024 * 2 * enc->channels;
+	enc->packetBufferSize = enc->channels * 768;
+	if(enc->packetBufferSize < 8192)
+		enc->packetBufferSize = 8192;
 
-	enc->packet_buffer = (uint8_t *)bmalloc(enc->packet_buffer_size);
+	enc->packetBuffer = (uint8_t *)bmalloc(enc->packetBufferSize);
 
-	HRC(CreateEmptySample(outputSample, enc->packet_buffer_size));
-	enc->output_sample = outputSample;
+	HRC(CreateEmptySample(outputSample, enc->packetBufferSize));
+	enc->outputSample = outputSample;
 
 	blog(LOG_INFO, "mfaac_aac encoder created");
 	blog(LOG_INFO, "mfaac_aac bitrate: %d, channels: %d",
@@ -172,7 +172,7 @@ static void mfaac_destroy(void *data)
 {
 	mfaac_encoder *enc = (mfaac_encoder *)data;
 
-	bfree(enc->packet_buffer);
+	bfree(enc->packetBuffer);
 	delete data;
 
 	blog(LOG_INFO, "mfaac encoder destroyed");
@@ -203,9 +203,9 @@ static bool mfaac_encode(void *data, struct encoder_frame *frame,
 	HRC(mediaBuffer->SetCurrentLength(frame->linesize[0]));
 
 	samples = frame->linesize[0] / enc->channels /
-		(enc->bits_per_sample / 8);
+		(enc->bitsPerSample / 8);
 	samplePts = frame->pts / 100;
-	sampleDur = (float)enc->sample_rate / enc->channels / samples;
+	sampleDur = (float)enc->sampleRate / enc->channels / samples;
 	sample->SetSampleTime(samplePts);
 	sample->SetSampleDuration((LONGLONG)(10000 * sampleDur));
 
@@ -213,10 +213,10 @@ static bool mfaac_encode(void *data, struct encoder_frame *frame,
 	if (hr == MF_E_NOTACCEPTING)
 		return false;
 
-	sample.Reset();
-	mediaBuffer.Reset();
+	sample.Release();
+	mediaBuffer.Release();
 
-	sample = enc->output_sample;
+	sample = enc->outputSample;
 	HRC(sample->GetBufferByIndex(0, &mediaBuffer));
 
 	output.pSample = sample.Get();
@@ -226,7 +226,7 @@ static bool mfaac_encode(void *data, struct encoder_frame *frame,
 		return true;
 
 	HRC(mediaBuffer->Lock(&mediaBufferData, NULL, &mediaBufferSize));
-	memcpy(enc->packet_buffer, mediaBufferData, mediaBufferSize);
+	memcpy(enc->packetBuffer, mediaBufferData, mediaBufferSize);
 	HRC(mediaBuffer->Unlock());
 	HRC(mediaBuffer->SetCurrentLength(frame->linesize[0]));
 
@@ -234,11 +234,11 @@ static bool mfaac_encode(void *data, struct encoder_frame *frame,
 
 	packet->pts = samplePts * 100;
 	packet->dts = packet->pts;
-	packet->data = enc->packet_buffer;
+	packet->data = enc->packetBuffer;
 	packet->size = mediaBufferSize;
 	packet->type = OBS_ENCODER_AUDIO;
 	packet->timebase_num = 1;
-	packet->timebase_den = enc->sample_rate;
+	packet->timebase_den = enc->sampleRate;
 
 	return *received_packet = true;
 fail:
@@ -257,7 +257,7 @@ static bool mfaac_extra_data(void *data, uint8_t **extra_data, size_t *size)
 	*header  = 2 << 11;
 	// Sample Index (3=48, 4=44.1)
 	// .... .XXX X... ....
-	*header |= enc->sample_rate == 48000 ? 3 : 4 << 7;
+	*header |= enc->sampleRate == 48000 ? 3 : 4 << 7;
 	// Channels
 	// .... .... .XXX X...
 	*header |= enc->channels << 3;
