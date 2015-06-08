@@ -290,6 +290,8 @@ static bool mf_h264_encode(void *data, struct encoder_frame *frame,
 
 	HRC(mediaBuffer->Lock(&mediaBufferData, NULL, NULL));
 	for (int i = 0; i < MAX_AV_PLANES; i++) {
+		if (!frame->data[i])
+			break;
 		memcpy(mediaBufferData, frame->data[i], frame->linesize[i] * enc->height);
 		mediaBufferData += frame->linesize[i] * enc->height;
 	}
