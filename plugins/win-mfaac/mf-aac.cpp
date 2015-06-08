@@ -2,17 +2,11 @@
 
 #include <memory>
 
-#define WIN32_MEAN_AND_LEAN
-#include <Windows.h>
-#undef WIN32_MEAN_AND_LEAN
+#include "mf-common.h"
 
-#include <mfapi.h>
-#include <mfidl.h>
-#include <Mferror.h>
-#include <mftransform.h>
-#include <wmcodecdsp.h>
-
-#include <util/windows/ComPtr.hpp>
+extern "C" {
+void RegisterMFAACEncoder();
+}
 
 struct mfaac_encoder {
 	obs_encoder_t *encoder;
@@ -23,8 +17,6 @@ struct mfaac_encoder {
 
 	ComPtr<IMFTransform> transform;
 	ComPtr<IMFSample> outputSample;
-
-	uint64_t total_samples;
 
 	int frameSizeBytes;
 
@@ -56,12 +48,6 @@ static void mfaac_defaults(obs_data_t *settings)
 	obs_data_set_default_int(settings, "bitrate", 128);
 }
 
-#define HRC(r) \
-	if(FAILED(hr = (r))) { \
-		blog(LOG_ERROR, #r " failed:  0x%08x", hr); \
-		goto fail; \
-	}
-
 static HRESULT CreateMediaTypes(ComPtr<IMFMediaType> &i, 
 		ComPtr<IMFMediaType> &o, unsigned int sampleRate, 
 		unsigned int channels, unsigned int bitsPerSample)
@@ -82,19 +68,6 @@ static HRESULT CreateMediaTypes(ComPtr<IMFMediaType> &i,
 	HRC(o->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, sampleRate));
 	HRC(o->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, channels));
 
-	return S_OK;
-fail:
-	return hr;
-}
-
-static HRESULT CreateEmptySample(ComPtr<IMFSample> &sample, int length)
-{
-	HRESULT hr;
-	ComPtr<IMFMediaBuffer> mediaBuffer;
-
-	HRC(MFCreateSample(&sample));
-	HRC(MFCreateMemoryBuffer(length, &mediaBuffer));
-	HRC(sample->AddBuffer(mediaBuffer.Get()));
 	return S_OK;
 fail:
 	return hr;
@@ -309,12 +282,3 @@ void RegisterMFAACEncoder()
 
 	obs_register_encoder(&info);
 }
-
-bool obs_module_load(void)
-{
-	RegisterMFAACEncoder();
-	return true;
-}
-
-OBS_DECLARE_MODULE()
-OBS_MODULE_USE_DEFAULT_LOCALE("win-mfaac", "en-US")

@@ -1,12 +1,14 @@
-project(obs-mfaac)
+project(win-mf)
 
-set(obs-mfaac_SOURCES
-	obs-mfaac.cpp)
+set(win-mf_SOURCES
+	mf-plugin.c
+	mf-aac.cpp
+	mf-h264.cpp)
 
-add_library(obs-mfaac MODULE
-	${obs-mfaac_SOURCES})
+add_library(win-mf MODULE
+	${win-mf_SOURCES})
 
-target_link_libraries(obs-mfaac
+target_link_libraries(win-mf
 	uuid
 	mfplat
 	mfuuid
@@ -14,4 +16,4 @@ target_link_libraries(obs-mfaac
 	wmcodecdspuuid
 	libobs)
 
-install_obs_plugin_with_data(obs-mfaac data)
+install_obs_plugin_with_data(win-mf data)
