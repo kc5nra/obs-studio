@@ -20,7 +20,7 @@ struct mfaac_encoder {
 
 	int frameSizeBytes;
 
-	uint8_t *packetBuffer;
+	std::unique_ptr<BYTE> packetBuffer;
 	int packetBufferSize;
 
 	uint8_t header[5];
@@ -123,7 +123,7 @@ static void *mfaac_create(obs_data_t *settings, obs_encoder_t *encoder)
 	if(enc->packetBufferSize < 8192)
 		enc->packetBufferSize = 8192;
 
-	enc->packetBuffer = (uint8_t *)bmalloc(enc->packetBufferSize);
+	enc->packetBuffer.reset(new BYTE[enc->packetBufferSize]);
 
 	HRC(CreateEmptySample(outputSample, enc->packetBufferSize));
 	enc->outputSample = outputSample;
@@ -144,11 +144,26 @@ fail:
 static void mfaac_destroy(void *data)
 {
 	mfaac_encoder *enc = (mfaac_encoder *)data;
-
-	bfree(enc->packetBuffer);
 	delete data;
 
 	blog(LOG_INFO, "mfaac encoder destroyed");
+}
+
+static HRESULT EnsureCapacity(ComPtr<IMFSample> &sample, 
+		ComPtr<IMFMediaBuffer> &buffer, DWORD requestedLength)
+{
+	HRESULT hr;
+	DWORD currentLength;
+
+	HRC(buffer->GetMaxLength(&requestedLength));
+	if (currentLength < requestedLength) {
+		sample->RemoveAllBuffers();
+		HRC(MFCreateMemoryBuffer(requestedLength, &buffer));
+	}
+
+	return S_OK;
+fail:
+	return hr;
 }
 
 static bool mfaac_encode(void *data, struct encoder_frame *frame,
@@ -162,6 +177,7 @@ static bool mfaac_encode(void *data, struct encoder_frame *frame,
 	BYTE *mediaBufferData;
 	DWORD mediaBufferSize;
 	MFT_OUTPUT_DATA_BUFFER output = { 0 };
+	
 	UINT32 samples;
 	INT64 samplePts;
 	float sampleDur;
@@ -189,17 +205,19 @@ static bool mfaac_encode(void *data, struct encoder_frame *frame,
 	sample.Release();
 	mediaBuffer.Release();
 
+	
 	sample = enc->outputSample;
 	HRC(sample->GetBufferByIndex(0, &mediaBuffer));
-
+	
 	output.pSample = sample.Get();
 
+	
 	hr = enc->transform->ProcessOutput(0, 1, &output, &status);
 	if (hr == MF_E_TRANSFORM_NEED_MORE_INPUT)
 		return true;
 
 	HRC(mediaBuffer->Lock(&mediaBufferData, NULL, &mediaBufferSize));
-	memcpy(enc->packetBuffer, mediaBufferData, mediaBufferSize);
+	memcpy(enc->packetBuffer.get(), mediaBufferData, mediaBufferSize);
 	HRC(mediaBuffer->Unlock());
 	HRC(mediaBuffer->SetCurrentLength(frame->linesize[0]));
 
@@ -207,7 +225,7 @@ static bool mfaac_encode(void *data, struct encoder_frame *frame,
 
 	packet->pts = samplePts * 100;
 	packet->dts = packet->pts;
-	packet->data = enc->packetBuffer;
+	packet->data = enc->packetBuffer.get();
 	packet->size = mediaBufferSize;
 	packet->type = OBS_ENCODER_AUDIO;
 	packet->timebase_num = 1;
