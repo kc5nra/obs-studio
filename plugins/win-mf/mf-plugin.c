@@ -1,10 +1,12 @@
 #include <obs-module.h>
 
 extern void RegisterMFAACEncoder();
+extern void RegisterMFH264Encoder();
 
 bool obs_module_load(void)
 {
 	RegisterMFAACEncoder();
+	RegisterMFH264Encoder();
 	return true;
 }
 

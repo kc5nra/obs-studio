@@ -3,7 +3,8 @@ project(win-mf)
 set(win-mf_SOURCES
 	mf-plugin.c
 	mf-aac.cpp
-	mf-aac-encoder.cpp)
+	mf-aac-encoder.cpp
+	mf-h264-encoder.cpp)
 
 set(win-mf_HEADERS
 	mf-aac-encoder.hpp)
