@@ -294,12 +294,6 @@ static void mf_h264_destroy(void *data)
 	blog(LOG_INFO, "mfh264 encoder destroyed");
 }
 
-static inline size_t memcpy_and_inc(BYTE **dst, BYTE *src, size_t size)
-{
-	memcpy(*dst, src, size);
-	*dst += size;
-}
-
 bool ProcessFormat(std::function<void(size_t height, int plane)> func,
 		enum video_format format, uint32_t height)
 {
@@ -422,10 +416,6 @@ static bool mf_h264_encode(void *data, struct encoder_frame *frame,
 		memcpy(out, enc->extra_data, enc->extra_data_size);
 		out += enc->extra_data_size;
 	}
-	else {
-		mediaBufferData += 1;
-		outputSize -= 1;
-	}
 	enc->outputBuffer.write((const char *)mediaBufferData, outputSize);
 	memcpy(out, mediaBufferData, outputSize);
 	HRC(mediaBuffer->Unlock());
@@ -435,7 +425,7 @@ static bool mf_h264_encode(void *data, struct encoder_frame *frame,
 	packet->pts = samplePts;
 	packet->dts = packet->pts;
 	packet->data = enc->output;
-	packet->size = isKeyFrame ? enc->outputSize : enc->outputSize + enc->extra_data_size;
+	packet->size = isKeyFrame ? outputSize : outputSize + enc->extra_data_size;
 	packet->type = OBS_ENCODER_VIDEO;
 	packet->keyframe = isKeyFrame;
 	
@@ -469,22 +459,22 @@ fail:
 	return false;
 }
 
-void RegisterMFH264Encoder()
-{
-	obs_encoder_info info = { 0 };
-	info.id = "mf_h264";
-	info.type = OBS_ENCODER_VIDEO;
-	info.codec = "h264";
-	info.get_name = mf_h264_getname;
-	info.create = mf_h264_create;
-	info.destroy = mf_h264_destroy;
-	info.encode = mf_h264_encode;
-	info.update = mf_h264_update;
-	info.get_properties = mf_h264_properties;
-	info.get_defaults = mf_h264_defaults;
-	info.get_extra_data = mf_h264_extra_data;
-	info.get_sei_data = mf_h264_sei_data;
-	info.get_video_info = mf_h264_video_info;
-
-	obs_register_encoder(&info);
-}
+//void RegisterMFH264Encoder()
+//{
+//	obs_encoder_info info = { 0 };
+//	info.id = "mf_h264";
+//	info.type = OBS_ENCODER_VIDEO;
+//	info.codec = "h264";
+//	info.get_name = mf_h264_getname;
+//	info.create = mf_h264_create;
+//	info.destroy = mf_h264_destroy;
+//	info.encode = mf_h264_encode;
+//	info.update = mf_h264_update;
+//	info.get_properties = mf_h264_properties;
+//	info.get_defaults = mf_h264_defaults;
+//	info.get_extra_data = mf_h264_extra_data;
+//	info.get_sei_data = mf_h264_sei_data;
+//	info.get_video_info = mf_h264_video_info;
+//
+//	obs_register_encoder(&info);
+//}

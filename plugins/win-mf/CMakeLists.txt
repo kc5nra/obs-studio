@@ -4,10 +4,15 @@ set(win-mf_SOURCES
 	mf-plugin.c
 	mf-aac.cpp
 	mf-aac-encoder.cpp
+	mf-encoder-descriptor.cpp
+	mf-h264.cpp
 	mf-h264-encoder.cpp)
 
 set(win-mf_HEADERS
-	mf-aac-encoder.hpp)
+	mf-common.hpp
+	mf-encoder-descriptor.hpp
+	mf-aac-encoder.hpp
+	mf-h264-encoder.hpp)
 
 add_library(win-mf MODULE
 	${win-mf_SOURCES}
