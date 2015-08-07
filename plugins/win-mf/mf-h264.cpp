@@ -75,22 +75,22 @@ static bool MFH264_Update(void *data, obs_data_t *settings)
 	return true;
 }
 
-extern "C" void RegisterMFH264Encoder()
-{
-	obs_encoder_info info = { 0 };
-	info.id = "mf_h264";
-	info.type = OBS_ENCODER_VIDEO;
-	info.codec = "h264";
-	info.get_name = MFH264_GetName;
-	info.create = MFH264_Create;
-	info.destroy = MFH264_Destroy;
-	info.encode = MFH264_Encode;
-	info.update = MFH264_Update;
-	info.get_properties = MFH264_GetProperties;
-	info.get_defaults = MFH264_GetDefaults;
-	info.get_extra_data = MFH264_GetExtraData;
-	info.get_sei_data = MFH264_GetSEIData;
-	info.get_video_info = MFH264_GetVideoInfo;
-
-	obs_register_encoder(&info);
-}
+//extern "C" void RegisterMFH264Encoder()
+//{
+//	obs_encoder_info info = { 0 };
+//	info.id = "mf_h264";
+//	info.type = OBS_ENCODER_VIDEO;
+//	info.codec = "h264";
+//	info.get_name = MFH264_GetName;
+//	info.create = MFH264_Create;
+//	info.destroy = MFH264_Destroy;
+//	info.encode = MFH264_Encode;
+//	info.update = MFH264_Update;
+//	info.get_properties = MFH264_GetProperties;
+//	info.get_defaults = MFH264_GetDefaults;
+//	info.get_extra_data = MFH264_GetExtraData;
+//	info.get_sei_data = MFH264_GetSEIData;
+//	info.get_video_info = MFH264_GetVideoInfo;
+//
+//	obs_register_encoder(&info);
+//}

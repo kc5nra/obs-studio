@@ -19,6 +19,8 @@ add_library(win-mf MODULE
 	${win-mf_HEADERS})
 
 target_link_libraries(win-mf
+	d3d9
+	dxva2
 	uuid
 	mfplat
 	mfuuid

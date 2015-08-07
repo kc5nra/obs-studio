@@ -98,13 +98,13 @@ static std::unique_ptr<EncoderDescriptor> CreateDescriptor(ComPtr<IMFActivate> a
 	isAsync |= !!(flags & MFT_ENUM_FLAG_ASYNCMFT);
 	bool isHardware = !!(flags & MFT_ENUM_FLAG_HARDWARE);
 
-	GUID mftGuid = {0};
-	activate->GetGUID(MFT_TRANSFORM_CLSID_Attribute, &mftGuid);
+	GUID guid = {0};
+	activate->GetGUID(MFT_TRANSFORM_CLSID_Attribute, &guid);
 	ComHeapPtr<WCHAR> guidW;
-	StringFromIID(mftGuid, &guidW);
-	std::string guid = MBSToString(guidW);
+	StringFromIID(guid, &guidW);
+	std::string guidString = MBSToString(guidW);
 
-	std::unique_ptr<EncoderDescriptor> descriptor(new EncoderDescriptor(activate, name, guid, isAsync, isHardware));
+	std::unique_ptr<EncoderDescriptor> descriptor(new EncoderDescriptor(activate, name, guid, guidString, isAsync, isHardware));
 	return descriptor;
 }
 
