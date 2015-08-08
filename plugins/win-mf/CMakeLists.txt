@@ -6,9 +6,11 @@ set(win-mf_SOURCES
 	mf-aac-encoder.cpp
 	mf-encoder-descriptor.cpp
 	mf-h264.cpp
-	mf-h264-encoder.cpp)
+	mf-h264-encoder.cpp
+	mf-h264-enc.cpp)
 
 set(win-mf_HEADERS
+	mf-async-callback.hpp
 	mf-common.hpp
 	mf-encoder-descriptor.hpp
 	mf-aac-encoder.hpp

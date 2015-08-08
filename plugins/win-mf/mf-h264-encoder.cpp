@@ -30,6 +30,7 @@ void RegisterMFH264Encoder();
 
 #include "mf-common.hpp"
 #include "mf-encoder-descriptor.hpp"
+#include "mf-h264-encoder.hpp"
 
 #define MF_LOG_COM(msg, hr) MF_LOG(LOG_ERROR, \
 		msg " failed,  %S (0x%08lx)", \
@@ -1050,22 +1051,22 @@ fail:
 }
 
 
-void RegisterMFH264Encoder()
-{
-	obs_encoder_info info = { 0 };
-	info.id = "mf_h264";
-	info.type = OBS_ENCODER_VIDEO;
-	info.codec = "h264";
-	info.get_name = mf_h264_getname;
-	info.create = mf_h264_create;
-	info.destroy = mf_h264_destroy;
-	info.encode = mf_h264_encode;
-	info.update = mf_h264_update;
-	info.get_properties = mf_h264_properties;
-	info.get_defaults = mf_h264_defaults;
-	info.get_extra_data = mf_h264_extra_data;
-	info.get_sei_data = mf_h264_sei_data;
-	info.get_video_info = mf_h264_video_info;
-
-	obs_register_encoder(&info);
-}
+//void RegisterMFH264Encoder()
+//{
+//	obs_encoder_info info = { 0 };
+//	info.id = "mf_h264";
+//	info.type = OBS_ENCODER_VIDEO;
+//	info.codec = "h264";
+//	info.get_name = mf_h264_getname;
+//	info.create = mf_h264_create;
+//	info.destroy = mf_h264_destroy;
+//	info.encode = mf_h264_encode;
+//	info.update = mf_h264_update;
+//	info.get_properties = mf_h264_properties;
+//	info.get_defaults = mf_h264_defaults;
+//	info.get_extra_data = mf_h264_extra_data;
+//	info.get_sei_data = mf_h264_sei_data;
+//	info.get_video_info = mf_h264_video_info;
+//
+//	obs_register_encoder(&info);
+//}

@@ -28,6 +28,9 @@ public:
 	std::string Name() { return name; }
 	ComPtr<IMFActivate> Activator() { return activate; }
 	GUID &Guid() { return guid; }
+	std::string GuidString() { return guidString; }
+	bool Async() { return isAsync; }
+	bool Hardware() { return isHardware; }
 
 private:	
 	ComPtr<IMFActivate> activate;
