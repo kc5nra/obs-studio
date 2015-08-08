@@ -249,7 +249,8 @@ bool H264Encoder::ProcessInput(UINT8 **data, UINT32 *linesize, UINT64 pts,
 
 	MFFrameRateToAverageTimePerFrame(framerateNum, framerateDen, &sampleDur);
 
-	HRC(sample->SetSampleTime(pts));
+
+	HRC(sample->SetSampleTime(pts * sampleDur));
 	HRC(sample->SetSampleDuration(sampleDur));
 
 	transform->ProcessInput(0, sample, 0);
@@ -284,6 +285,7 @@ HRESULT H264Encoder::ProcessOutput()
 	DWORD bufferLength;
 	INT64 samplePts;
 	INT64 sampleDts;
+	INT64 sampleDur;
 	std::unique_ptr<std::vector<BYTE>> data(new std::vector<BYTE>());
 	ComPtr<IMFMediaType> type;
 	std::unique_ptr<H264Frame> frame;
@@ -353,12 +355,16 @@ HRESULT H264Encoder::ProcessOutput()
 	
 	data->insert(data->end(), &bufferData[0], &bufferData[bufferLength]);
 	HRC(buffer->Unlock());
-
+	
+	HRC(sample->GetSampleDuration(&sampleDur));
 	HRC(sample->GetSampleTime(&samplePts));
+
 	sampleDts = MFGetAttributeUINT64(sample, 
 			MFSampleExtension_DecodeTimestamp, samplePts);
 
-	frame.reset(new H264Frame(keyframe, samplePts, sampleDts, 
+	frame.reset(new H264Frame(keyframe, 
+			samplePts / sampleDur, 
+			sampleDts / sampleDur, 
 			std::move(data)));
 
 	encodedFrames.push(std::move(frame));
