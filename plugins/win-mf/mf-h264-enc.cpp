@@ -42,7 +42,7 @@ HRESULT H264Encoder::CreateMediaTypes(ComPtr<IMFMediaType> &i,
 	HRC(o->SetUINT32(MF_MT_INTERLACE_MODE, 
 			MFVideoInterlaceMode::MFVideoInterlace_Progressive));
 	HRC(MFSetAttributeRatio(o, MF_MT_PIXEL_ASPECT_RATIO, 1, 1));
-	HRC(o->SetUINT32(MF_MT_MPEG2_LEVEL, -1));
+	HRC(o->SetUINT32(MF_MT_MPEG2_LEVEL, (UINT32)-1));
 	HRC(o->SetUINT32(MF_MT_MPEG2_PROFILE, MapProfile(profile)));
 
 	return S_OK;
@@ -61,16 +61,20 @@ HRESULT H264Encoder::InitializeEventGenerator()
 	callback.Set(new AsyncCallback([&, this, eventGenerator](
 				AsyncCallback *callback, 
 				ComPtr<IMFAsyncResult> res) {
-		HRESULT hr;
+		HRESULT hr, eventStatus;
 		ComPtr<IMFMediaEvent> event;
 		MediaEventType type;
 		HRC(eventGenerator->EndGetEvent(res, &event));
 		HRC(event->GetType(&type));
-		if (type == METransformNeedInput) {
-			inputRequests++;
-		}
-		else if (type == METransformHaveOutput) {
-			outputRequests++;
+		HRC(event->GetStatus(&eventStatus));
+		
+		if (SUCCEEDED(eventStatus)) {
+			if (type == METransformNeedInput) {
+				inputRequests++;
+			}
+			else if (type == METransformHaveOutput) {
+				outputRequests++;
+			}
 		}
 
 		HRC(eventGenerator->BeginGetEvent(callback, NULL));
@@ -90,10 +94,8 @@ fail:
 HRESULT H264Encoder::InitializeExtraData()
 {
 	HRESULT hr;
-	MPEG2VIDEOINFO *mediaInfo;
 	ComPtr<IMFMediaType> inputType;
 	UINT32 headerSize;
-	BYTE *header;
 
 	extraData.clear();
 
@@ -119,15 +121,23 @@ bool H264Encoder::Initialize()
 	ComPtr<IMFTransform> transform_;
 	ComPtr<IMFMediaType> inputType, outputType;
 	ComPtr<IMFAttributes> transformAttributes;
+	MFT_OUTPUT_STREAM_INFO streamInfo = {0};
 	HRC(activate->ActivateObject(IID_PPV_ARGS(&transform_)));
 
 	HRC(CreateMediaTypes(inputType, outputType));
 
-	// Unlock async (only do this if it is an async mft)
-	HRC(transform_->GetAttributes(&transformAttributes));
-	HRC(transformAttributes->SetUINT32(MF_TRANSFORM_ASYNC_UNLOCK, TRUE));
+	if (async) {
+		HRC(transform_->GetAttributes(&transformAttributes));
+		HRC(transformAttributes->SetUINT32(MF_TRANSFORM_ASYNC_UNLOCK, 
+				TRUE));
+	}
 	
+	MF_LOG(LOG_INFO, "Setting output type to transform");
+	LogMediaType(outputType.Get());
 	HRC(transform_->SetOutputType(0, outputType.Get(), 0));
+	
+	MF_LOG(LOG_INFO, "Setting input type to transform");
+	LogMediaType(inputType.Get());
 	HRC(transform_->SetInputType(0, inputType.Get(), 0));
 	
 	HRC(transform_->ProcessMessage(MFT_MESSAGE_NOTIFY_BEGIN_STREAMING,
@@ -137,7 +147,13 @@ bool H264Encoder::Initialize()
 
 	transform = transform_;
 
-	HRC(InitializeEventGenerator());
+	if (async)
+		HRC(InitializeEventGenerator());
+
+	HRC(transform->GetOutputStreamInfo(0, &streamInfo));
+	createOutputSample = !(streamInfo.dwFlags & 
+			       (MFT_OUTPUT_STREAM_PROVIDES_SAMPLES |
+			        MFT_OUTPUT_STREAM_CAN_PROVIDE_SAMPLES));
 
 	return true;
 
@@ -206,17 +222,17 @@ bool H264Encoder::ProcessInput(UINT8 **data, UINT32 *linesize, UINT64 pts,
 	ComPtr<IMFSample> sample;
 	ComPtr<IMFMediaBuffer> buffer;
 	BYTE *bufferData;
-	INT64 samplePts;
-	UINT32 samples;
 	UINT64 sampleDur;
 	UINT32 imageSize;
 
-	if (inputRequests == 0) {
-		*status = NOT_ACCEPTING;
-		return true;
-	}
+	if (async) {
+		if (inputRequests == 0) {
+			*status = NOT_ACCEPTING;
+			return true;
+		}
 
-	inputRequests--;
+		inputRequests--;
+	}
 
 	HRC(MFCalculateImageSize(MFVideoFormat_NV12, width, height, &imageSize));
 
@@ -236,12 +252,14 @@ bool H264Encoder::ProcessInput(UINT8 **data, UINT32 *linesize, UINT64 pts,
 	HRC(sample->SetSampleTime(pts));
 	HRC(sample->SetSampleDuration(sampleDur));
 
-	hr = transform->ProcessInput(0, sample, 0);
-	if (hr == MF_E_NOTACCEPTING) {
-		*status = NOT_ACCEPTING;
-		return true;
-	} else if (FAILED(hr)) {
-		MF_LOG_COM("process input", hr);
+	transform->ProcessInput(0, sample, 0);
+	while (hr == MF_E_NOTACCEPTING) {
+		hr = ProcessOutput();
+		if (SUCCEEDED(hr))
+			hr = transform->ProcessInput(0, sample, 0);
+	}
+	if (FAILED(hr)) {
+		MF_LOG_COM("transform->ProcessInput()", hr);
 		return false;
 	}
 
@@ -264,42 +282,53 @@ HRESULT H264Encoder::ProcessOutput()
 	ComPtr<IMFMediaBuffer> buffer;
 	BYTE *bufferData;
 	DWORD bufferLength;
-	DWORD sampleFlags;
-	DWORD bufferCount;
 	INT64 samplePts;
 	INT64 sampleDts;
 	std::unique_ptr<std::vector<BYTE>> data(new std::vector<BYTE>());
 	ComPtr<IMFMediaType> type;
 	std::unique_ptr<H264Frame> frame;
 
-	if (outputRequests == 0)
-		return S_OK;
+	if (async) {
+		if (outputRequests == 0)
+			return S_OK;
 
-	outputRequests--;
+		outputRequests--;
+	}
 
 	HRC(transform->GetOutputStatus(&outputFlags));
 	if (outputFlags != MFT_OUTPUT_STATUS_SAMPLE_READY)
 		return S_OK;
 
-	// if not async, create sample here
-
-	output.pSample = NULL;
+	
+	if (createOutputSample) {
+		HRC(transform->GetOutputStreamInfo(0, &outputInfo));
+		HRC(CreateEmptySample(sample, buffer, outputInfo.cbSize));
+		output.pSample = sample;
+	} else {
+		output.pSample = NULL;
+	}
 
 	while (true) {
 		hr = transform->ProcessOutput(0, 1, &output, 
 				&outputStatus);
-		if (hr == MF_E_TRANSFORM_NEED_MORE_INPUT || 
-		    hr == MF_E_UNEXPECTED)
+		if (hr == MF_E_TRANSFORM_NEED_MORE_INPUT)
 			return hr;
 
 		if (hr == MF_E_TRANSFORM_STREAM_CHANGE) {
 			HRC(transform->GetOutputAvailableType(0, 0, &type));
 			HRC(transform->SetOutputType(0, type, 0));
-			continue;
+			MF_LOG(LOG_INFO, "Updating output type to transform");
+			LogMediaType(type);
+			if (async && outputRequests > 0) {
+				outputRequests--;
+				continue;
+			} else {
+				return MF_E_TRANSFORM_NEED_MORE_INPUT;
+			}
 		}
 
 		if (hr != S_OK) {
-			MF_LOG_COM("transform->ProcessOutput() failed", hr);
+			MF_LOG_COM("transform->ProcessOutput()", hr);
 			return hr;
 		}
 
@@ -312,7 +341,6 @@ HRESULT H264Encoder::ProcessOutput()
 	bool keyframe = !!MFGetAttributeUINT32(sample, 
 			MFSampleExtension_CleanPoint, FALSE);
 
-	DWORD outSize;
 	HRC(buffer->Lock(&bufferData, NULL, &bufferLength));
 
 	if (keyframe && extraData.empty())
@@ -321,13 +349,13 @@ HRESULT H264Encoder::ProcessOutput()
 	data->reserve(bufferLength + extraData.size());
 	
 	if (keyframe)
-		data->insert(data->end(), extraData.begin(), extraData.end());
+		data->insert(data->end(), extraData.begin(), extraData.end()); 
 	
 	data->insert(data->end(), &bufferData[0], &bufferData[bufferLength]);
 	HRC(buffer->Unlock());
 
 	HRC(sample->GetSampleTime(&samplePts));
-	sampleDts = MFGetAttributeUINT32(sample, 
+	sampleDts = MFGetAttributeUINT64(sample, 
 			MFSampleExtension_DecodeTimestamp, samplePts);
 
 	frame.reset(new H264Frame(keyframe, samplePts, sampleDts, 
@@ -364,7 +392,7 @@ bool H264Encoder::ProcessOutput(UINT8 **data, UINT32 *dataLength,
 	*data = activeFrame.get()->Data();
 	*dataLength = activeFrame.get()->DataLength();
 	*pts = activeFrame.get()->Pts();
-	*pts = activeFrame.get()->Dts();
+	*dts = activeFrame.get()->Dts();
 	*keyframe = activeFrame.get()->Keyframe();
 	*status = SUCCESS;
 

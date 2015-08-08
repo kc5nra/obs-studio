@@ -73,6 +73,7 @@ namespace MF {
 	public:
 		H264Encoder(const obs_encoder_t *encoder, 
 			ComPtr<IMFActivate> &activate,
+			bool async,
 			UINT32 width,
 			UINT32 height,
 			UINT32 framerateNum,
@@ -83,6 +84,7 @@ namespace MF {
 			H264QP &qp)
 			: encoder(encoder),
 			activate(activate),
+			async(async),
 			width(width),
 			height(height),
 			framerateNum(framerateNum),
@@ -127,6 +129,7 @@ namespace MF {
 	private:
 		const obs_encoder_t *encoder;
 		ComPtr<IMFActivate> activate;
+		const bool async;
 		const UINT32 width;
 		const UINT32 height;
 		const UINT32 framerateNum;
@@ -136,6 +139,7 @@ namespace MF {
 		const H264RateControl rateControl;
 		H264QP qp;
 
+		bool createOutputSample;
 		ComPtr<IMFTransform> transform;
 		std::queue<std::unique_ptr<H264Frame>> encodedFrames;
 		std::unique_ptr<H264Frame> activeFrame;

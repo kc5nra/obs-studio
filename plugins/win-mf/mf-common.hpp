@@ -2,8 +2,8 @@
 
 #include <obs-module.h>
 
+#include <mfapi.h>
 #include <functional>
-
 #include <comdef.h>
 
 
@@ -52,5 +52,7 @@ static bool ProcessNV12(std::function<void(size_t height, int plane)> func,
 
 	return true;
 }
+
+bool LogMediaType(IMFMediaType *mediaType);
 }
 

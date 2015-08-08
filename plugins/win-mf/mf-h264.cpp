@@ -40,7 +40,7 @@ static obs_properties_t *MFH264_GetProperties(void *)
 {
 	obs_properties_t *props = obs_properties_create();
 
-	obs_property_t *p = obs_properties_add_list(props, "encoder", 
+	obs_property_t *p = obs_properties_add_list(props, "encoder_guid", 
 			TEXT_ENCODER, OBS_COMBO_TYPE_LIST,
 			OBS_COMBO_FORMAT_STRING);
 	auto encoders = MF::EncoderDescriptor::Enumerate();
@@ -77,7 +77,7 @@ static obs_properties_t *MFH264_GetProperties(void *)
 
 static void MFH264_GetDefaults(obs_data_t *settings)
 {
-	obs_data_set_default_string(settings, "encoder",
+	obs_data_set_default_string(settings, "encoder_guid",
 			"{6CA50344-051A-4DED-9779-A43305165E35}");
 	obs_data_set_default_int(settings, "bitrate", 2500);
 	obs_data_set_default_int(settings, "profile", H264ProfileBaseline);
@@ -134,6 +134,7 @@ static void *MFH264_Create(obs_data_t *settings, obs_encoder_t *encoder)
 
 	enc->h264Encoder.reset(new H264Encoder(encoder, 
 			enc->descriptor->Activator(), 
+			enc->descriptor->Async(),
 			enc->width, 
 			enc->height, 
 			enc->framerateNum, 
@@ -173,8 +174,8 @@ static bool MFH264_Encode(void *data, struct encoder_frame *frame,
 	UINT64 outputDts;
 	bool keyframe;
 
-	if (!enc->h264Encoder->ProcessOutput(&outputData, &outputDataLength, &outputPts,
-		&outputDts, &keyframe, &status))
+	if (!enc->h264Encoder->ProcessOutput(&outputData, &outputDataLength, 
+			&outputPts, &outputDts, &keyframe, &status))
 		return false;
 
 	// Needs more input, not a failure case
