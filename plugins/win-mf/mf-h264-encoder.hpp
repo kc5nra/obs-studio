@@ -13,6 +13,7 @@
 #include <queue>
 #include <memory>
 #include <atomic>
+#include <mutex>
 
 #include <util/windows/ComPtr.hpp>
 #include "mf-encoder-descriptor.hpp"
@@ -94,7 +95,14 @@ namespace MF {
 			rateControl(rateControl),
 			qp(qp)
 		{
-			extraData.clear();
+			CoInitializeEx(0, COINIT_MULTITHREADED);
+			MFStartup(MF_VERSION, MFSTARTUP_FULL);
+		}
+
+		~H264Encoder() 
+		{
+			MFShutdown();
+			CoUninitialize();
 		}
 
 		bool Initialize();
@@ -124,7 +132,11 @@ namespace MF {
 		HRESULT CreateEmptySample(ComPtr<IMFSample> &sample,
 			ComPtr<IMFMediaBuffer> &buffer, DWORD length);
 
+		HRESULT ProcessInput(ComPtr<IMFSample> sample);
 		HRESULT ProcessOutput();
+
+		void PushInputSample(ComPtr<IMFSample> &inputSample);
+		ComPtr<IMFSample> PopInputSample();
 
 	private:
 		const obs_encoder_t *encoder;
@@ -141,10 +153,12 @@ namespace MF {
 
 		bool createOutputSample;
 		ComPtr<IMFTransform> transform;
+		std::queue<ComPtr<IMFSample>> inputSamples;
 		std::queue<std::unique_ptr<H264Frame>> encodedFrames;
 		std::unique_ptr<H264Frame> activeFrame;
 		std::vector<BYTE> extraData;
-		std::atomic<UINT32> inputRequests;
-		std::atomic<UINT32> outputRequests;
+		std::atomic<UINT32> inputRequests = 0;
+		std::atomic<UINT32> outputRequests = 0;
+		std::mutex inputSamplesMutex;
 	};
 }

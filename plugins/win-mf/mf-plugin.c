@@ -5,7 +5,6 @@ extern void RegisterMFH264Encoder();
 
 bool obs_module_load(void)
 {
-	HRESULT hr = MFStartup(MF_VERSION, 0);
 	RegisterMFAACEncoder();
 	RegisterMFH264Encoder();
 	return true;

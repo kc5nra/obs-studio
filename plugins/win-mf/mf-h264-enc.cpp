@@ -71,9 +71,11 @@ HRESULT H264Encoder::InitializeEventGenerator()
 		if (SUCCEEDED(eventStatus)) {
 			if (type == METransformNeedInput) {
 				inputRequests++;
+				blog(LOG_INFO, "NeedInput!");
 			}
 			else if (type == METransformHaveOutput) {
 				outputRequests++;
+				blog(LOG_INFO, "NeedOutput!");
 			}
 		}
 
@@ -215,6 +217,33 @@ fail:
 	return hr;
 }
 
+HRESULT H264Encoder::ProcessInput(ComPtr<IMFSample> sample)
+{
+	HRESULT hr = S_OK;
+	if (async) {
+		if (inputRequests == 1 && inputSamples.empty()) {
+			inputRequests--;
+			return transform->ProcessInput(0, sample, 0);
+		}
+
+		inputSamples.push(sample);
+
+		while (inputRequests > 0) {
+			if (inputSamples.empty())
+				return hr;
+			ComPtr<IMFSample> queuedSample = inputSamples.front();
+			inputSamples.pop();
+			inputRequests--;
+			HRC(transform->ProcessInput(0, queuedSample, 0));
+		}
+	} else {
+		return transform->ProcessInput(0, sample, 0);
+	}
+
+fail:
+	return hr;
+}
+
 bool H264Encoder::ProcessInput(UINT8 **data, UINT32 *linesize, UINT64 pts, 
 		Status *status)
 {
@@ -224,15 +253,6 @@ bool H264Encoder::ProcessInput(UINT8 **data, UINT32 *linesize, UINT64 pts,
 	BYTE *bufferData;
 	UINT64 sampleDur;
 	UINT32 imageSize;
-
-	if (async) {
-		if (inputRequests == 0) {
-			*status = NOT_ACCEPTING;
-			return true;
-		}
-
-		inputRequests--;
-	}
 
 	HRC(MFCalculateImageSize(MFVideoFormat_NV12, width, height, &imageSize));
 
@@ -249,15 +269,15 @@ bool H264Encoder::ProcessInput(UINT8 **data, UINT32 *linesize, UINT64 pts,
 
 	MFFrameRateToAverageTimePerFrame(framerateNum, framerateDen, &sampleDur);
 
-
 	HRC(sample->SetSampleTime(pts * sampleDur));
 	HRC(sample->SetSampleDuration(sampleDur));
 
-	transform->ProcessInput(0, sample, 0);
+	hr = ProcessInput(sample);
+
 	while (hr == MF_E_NOTACCEPTING) {
 		hr = ProcessOutput();
 		if (SUCCEEDED(hr))
-			hr = transform->ProcessInput(0, sample, 0);
+			hr = ProcessInput(sample);
 	}
 	if (FAILED(hr)) {
 		MF_LOG_COM("transform->ProcessInput()", hr);
