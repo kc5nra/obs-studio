@@ -133,7 +133,7 @@ static void *MFH264_Create(obs_data_t *settings, obs_encoder_t *encoder)
 	UpdateParams(enc.get(), settings);
 
 	enc->h264Encoder.reset(new H264Encoder(encoder, 
-			enc->descriptor->Activator(), 
+			enc->descriptor->Guid(), 
 			enc->descriptor->Async(),
 			enc->width, 
 			enc->height, 

@@ -72,7 +72,7 @@ namespace MF {
 	class H264Encoder {
 	public:
 		H264Encoder(const obs_encoder_t *encoder,
-			ComPtr<IMFActivate> &activate,
+			GUID &guid,
 			bool async,
 			UINT32 width,
 			UINT32 height,
@@ -82,6 +82,8 @@ namespace MF {
 			H264Profile profile,
 			H264RateControl rateControl,
 			H264QP &qp);
+
+		~H264Encoder();
 
 		bool Initialize();
 		bool ProcessInput(UINT8 **data, UINT32 *linesize, UINT64 pts,
@@ -117,7 +119,7 @@ namespace MF {
 		HRESULT DrainEvents();
 	private:
 		const obs_encoder_t *encoder;
-		ComPtr<IMFActivate> activate;
+		GUID guid;
 		const bool async;
 		const UINT32 width;
 		const UINT32 height;

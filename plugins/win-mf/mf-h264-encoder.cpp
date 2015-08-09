@@ -30,7 +30,7 @@ static bool ProcessNV12(std::function<void(size_t height, int plane)> func,
 }
 
 H264Encoder::H264Encoder(const obs_encoder_t *encoder,
-	ComPtr<IMFActivate> &activate,
+	GUID &guid,
 	bool async,
 	UINT32 width,
 	UINT32 height,
@@ -41,7 +41,7 @@ H264Encoder::H264Encoder(const obs_encoder_t *encoder,
 	H264RateControl rateControl,
 	H264QP &qp)
 	: encoder(encoder),
-	activate(activate),
+	guid(guid),
 	async(async),
 	width(width),
 	height(height),
@@ -53,6 +53,10 @@ H264Encoder::H264Encoder(const obs_encoder_t *encoder,
 	qp(qp)
 {
 	
+}
+
+H264Encoder::~H264Encoder()
+{
 }
 
 HRESULT H264Encoder::CreateMediaTypes(ComPtr<IMFMediaType> &i,
@@ -173,8 +177,10 @@ bool H264Encoder::Initialize()
 	ComPtr<IMFMediaType> inputType, outputType;
 	ComPtr<IMFAttributes> transformAttributes;
 	MFT_OUTPUT_STREAM_INFO streamInfo = {0};
-	HRC(activate->ActivateObject(IID_PPV_ARGS(&transform_)));
-
+	
+	HRC(CoCreateInstance(guid, NULL, CLSCTX_INPROC_SERVER,
+			IID_PPV_ARGS(&transform_)));
+	
 	HRC(CreateMediaTypes(inputType, outputType));
 
 	if (async) {
@@ -323,28 +329,32 @@ bool H264Encoder::ProcessInput(UINT8 **data, UINT32 *linesize, UINT64 pts,
 	HRC(sample->SetSampleTime(pts * sampleDur));
 	HRC(sample->SetSampleDuration(sampleDur));
 
-	HRC(DrainEvents());
+	if (async) {
+		HRC(DrainEvents());
 
-	while (outputRequests > 0 && (hr = ProcessOutput()) == S_OK);
+		while (outputRequests > 0 && (hr = ProcessOutput()) == S_OK);
 
-	if (hr != MF_E_TRANSFORM_NEED_MORE_INPUT && FAILED(hr)) {
-		MF_LOG_COM("ProcessOutput()", hr);
-		goto fail;
-	}
-	
-	while (inputRequests == 0) {
-		if ((hr = DrainEvent(false)) == MF_E_NO_EVENTS_AVAILABLE) {
-			Sleep(1);
-			continue;
-		}
-		if (FAILED(hr)) {
-			MF_LOG_COM("DrainEvent()", hr);
+		if (hr != MF_E_TRANSFORM_NEED_MORE_INPUT && FAILED(hr)) {
+			MF_LOG_COM("ProcessOutput()", hr);
 			goto fail;
 		}
-		if (outputRequests > 0) {
-			hr = ProcessOutput();
-			if (hr != MF_E_TRANSFORM_NEED_MORE_INPUT && FAILED(hr))
+
+		while (inputRequests == 0) {
+			hr = DrainEvent(false);
+			if (hr == MF_E_NO_EVENTS_AVAILABLE) {
+				Sleep(1);
+				continue;
+			}
+			if (FAILED(hr)) {
+				MF_LOG_COM("DrainEvent()", hr);
 				goto fail;
+			}
+			if (outputRequests > 0) {
+				hr = ProcessOutput();
+				if (hr != MF_E_TRANSFORM_NEED_MORE_INPUT && 
+				    FAILED(hr))
+					goto fail;
+			}
 		}
 	}
 
@@ -423,7 +433,9 @@ HRESULT H264Encoder::ProcessOutput()
 		break;
 	}
 
-	sample.Set(output.pSample);
+	if (!createOutputSample)
+		sample.Set(output.pSample);
+	
 
 	HRC(sample->GetBufferByIndex(0, &buffer));
 
