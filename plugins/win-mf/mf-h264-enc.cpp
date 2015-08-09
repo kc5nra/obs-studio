@@ -95,39 +95,8 @@ fail:
 HRESULT H264Encoder::InitializeEventGenerator()
 {
 	HRESULT hr;
-	//ComPtr<IMFMediaEventGenerator> eventGenerator;
-	//ComPtr<AsyncCallback> callback;
-
-	HRC(transform->QueryInterface(&eventGenerator));
-
-	/*callback.Set(new AsyncCallback([&, this, eventGenerator](
-				AsyncCallback *callback, 
-				ComPtr<IMFAsyncResult> res) {
-		HRESULT hr, eventStatus;
-		ComPtr<IMFMediaEvent> event;
-		MediaEventType type;
-		HRC(eventGenerator->EndGetEvent(res, &event));
-		HRC(event->GetType(&type));
-		HRC(event->GetStatus(&eventStatus));
-		
-		if (SUCCEEDED(eventStatus)) {
-			if (type == METransformNeedInput) {
-				inputRequests++;
-				blog(LOG_INFO, "NeedInput!");
-			}
-			else if (type == METransformHaveOutput) {
-				outputRequests++;
-				blog(LOG_INFO, "NeedOutput!");
-			}
-		}
-
-		HRC(eventGenerator->BeginGetEvent(callback, NULL));*/
 	
-	//fail:
-		//return hr;
-	//}));
-
-	//eventGenerator->BeginGetEvent(callback, NULL);
+	HRC(transform->QueryInterface(&eventGenerator));
 
 	return S_OK;
 
@@ -414,7 +383,8 @@ HRESULT H264Encoder::ProcessOutput()
 		break;
 	}
 
-	sample = output.pSample;
+	sample.Set(output.pSample);
+
 	HRC(sample->GetBufferByIndex(0, &buffer));
 
 	bool keyframe = !!MFGetAttributeUINT32(sample, 
@@ -446,8 +416,6 @@ HRESULT H264Encoder::ProcessOutput()
 
 	encodedFrames.push(std::move(frame));
 
-	MF_LOG(LOG_INFO, "Pushed.");
-
 	return S_OK;
 
 fail:
@@ -474,8 +442,6 @@ bool H264Encoder::ProcessOutput(UINT8 **data, UINT32 *dataLength,
 	activeFrame = std::move(encodedFrames.front());
 	encodedFrames.pop();
 	
-	MF_LOG(LOG_INFO, "Popped");
-
 	*data = activeFrame.get()->Data();
 	*dataLength = activeFrame.get()->DataLength();
 	*pts = activeFrame.get()->Pts();

@@ -7,6 +7,7 @@ bool obs_module_load(void)
 {
 	RegisterMFAACEncoder();
 	RegisterMFH264Encoder();
+
 	return true;
 }
 
