@@ -212,6 +212,10 @@ static bool MFH264_GetExtraData(void *data, uint8_t **extra_data, size_t *size)
 
 static bool MFH264_GetSEIData(void *data, uint8_t **sei_data, size_t *size)
 {
+	UNUSED_PARAMETER(data);
+	UNUSED_PARAMETER(sei_data);
+	UNUSED_PARAMETER(size);
+
 	return false;
 }
 
@@ -222,10 +226,13 @@ static void MFH264_GetVideoInfo(void *, struct video_scale_info *info)
 
 static bool MFH264_Update(void *data, obs_data_t *settings)
 {
+	UNUSED_PARAMETER(data);
+	UNUSED_PARAMETER(settings);
+
 	return true;
 }
 
-extern "C" void RegisterMFH264Encoder()
+void RegisterMFH264Encoder()
 {
 	obs_encoder_info info = { 0 };
 	info.id = "mf_h264";

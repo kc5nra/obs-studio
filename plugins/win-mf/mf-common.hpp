@@ -41,18 +41,6 @@ enum Status {
 	NEED_MORE_INPUT
 };
 
-static bool ProcessNV12(std::function<void(size_t height, int plane)> func,
-		uint32_t height)
-{
-	int plane = 0;
-
-	func(height, plane++);
-	func(height / 2, plane++);
-	func(height / 2, plane);
-
-	return true;
-}
-
 bool LogMediaType(IMFMediaType *mediaType);
 }
 

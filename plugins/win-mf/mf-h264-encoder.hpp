@@ -71,7 +71,7 @@ namespace MF {
 
 	class H264Encoder {
 	public:
-		H264Encoder(const obs_encoder_t *encoder, 
+		H264Encoder(const obs_encoder_t *encoder,
 			ComPtr<IMFActivate> &activate,
 			bool async,
 			UINT32 width,
@@ -81,28 +81,7 @@ namespace MF {
 			UINT32 bitrate,
 			H264Profile profile,
 			H264RateControl rateControl,
-			H264QP &qp)
-			: encoder(encoder),
-			activate(activate),
-			async(async),
-			width(width),
-			height(height),
-			framerateNum(framerateNum),
-			framerateDen(framerateDen),
-			bitrate(bitrate),
-			profile(profile),
-			rateControl(rateControl),
-			qp(qp)
-		{
-			CoInitializeEx(0, COINIT_MULTITHREADED);
-			MFStartup(MF_VERSION, MFSTARTUP_FULL);
-		}
-
-		~H264Encoder() 
-		{
-			MFShutdown();
-			CoUninitialize();
-		}
+			H264QP &qp);
 
 		bool Initialize();
 		bool ProcessInput(UINT8 **data, UINT32 *linesize, UINT64 pts,

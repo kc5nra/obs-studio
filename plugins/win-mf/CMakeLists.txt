@@ -1,14 +1,13 @@
 project(win-mf)
 
 set(win-mf_SOURCES
-	mf-plugin.c
+	mf-plugin.cpp
 	mf-aac.cpp
 	mf-aac-encoder.cpp
 	mf-common.cpp
 	mf-encoder-descriptor.cpp
 	mf-h264.cpp
-	mf-h264-encoder.cpp
-	mf-h264-enc.cpp)
+	mf-h264-encoder.cpp)
 
 set(win-mf_HEADERS
 	mf-async-callback.hpp
