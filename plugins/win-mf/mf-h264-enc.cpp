@@ -46,6 +46,48 @@ HRESULT H264Encoder::CreateMediaTypes(ComPtr<IMFMediaType> &i,
 	HRC(o->SetUINT32(MF_MT_MPEG2_PROFILE, MapProfile(profile)));
 
 	return S_OK;
+
+fail:
+	return hr;
+}
+
+HRESULT H264Encoder::DrainEvents()
+{
+	HRESULT hr;
+	while ((hr = DrainEvent(false)) == S_OK);
+	if (hr == MF_E_NO_EVENTS_AVAILABLE)
+		hr = S_OK;
+	return hr;
+}
+
+HRESULT H264Encoder::DrainEvent(bool block)
+{
+	HRESULT hr, eventStatus;
+	ComPtr<IMFMediaEvent> event;
+	MediaEventType type;
+
+	hr = eventGenerator->GetEvent(
+		block ? 0 : MF_EVENT_FLAG_NO_WAIT, &event);
+
+	if (hr != MF_E_NO_EVENTS_AVAILABLE && FAILED(hr))
+		goto fail;
+	if (hr == MF_E_NO_EVENTS_AVAILABLE)
+		return hr;
+
+	HRC(event->GetType(&type));
+	HRC(event->GetStatus(&eventStatus));
+
+	if (SUCCEEDED(eventStatus)) {
+		if (type == METransformNeedInput) {
+			inputRequests++;
+		}
+		else if (type == METransformHaveOutput) {
+			outputRequests++;
+		}
+	}
+
+	return S_OK;
+
 fail:
 	return hr;
 }
@@ -53,12 +95,12 @@ fail:
 HRESULT H264Encoder::InitializeEventGenerator()
 {
 	HRESULT hr;
-	ComPtr<IMFMediaEventGenerator> eventGenerator;
-	ComPtr<AsyncCallback> callback;
+	//ComPtr<IMFMediaEventGenerator> eventGenerator;
+	//ComPtr<AsyncCallback> callback;
 
 	HRC(transform->QueryInterface(&eventGenerator));
 
-	callback.Set(new AsyncCallback([&, this, eventGenerator](
+	/*callback.Set(new AsyncCallback([&, this, eventGenerator](
 				AsyncCallback *callback, 
 				ComPtr<IMFAsyncResult> res) {
 		HRESULT hr, eventStatus;
@@ -79,13 +121,13 @@ HRESULT H264Encoder::InitializeEventGenerator()
 			}
 		}
 
-		HRC(eventGenerator->BeginGetEvent(callback, NULL));
+		HRC(eventGenerator->BeginGetEvent(callback, NULL));*/
 	
-	fail:
-		return hr;
-	}));
+	//fail:
+		//return hr;
+	//}));
 
-	eventGenerator->BeginGetEvent(callback, NULL);
+	//eventGenerator->BeginGetEvent(callback, NULL);
 
 	return S_OK;
 
@@ -156,7 +198,7 @@ bool H264Encoder::Initialize()
 	createOutputSample = !(streamInfo.dwFlags & 
 			       (MFT_OUTPUT_STREAM_PROVIDES_SAMPLES |
 			        MFT_OUTPUT_STREAM_CAN_PROVIDE_SAMPLES));
-
+	
 	return true;
 
 fail:
@@ -217,7 +259,7 @@ fail:
 	return hr;
 }
 
-HRESULT H264Encoder::ProcessInput(ComPtr<IMFSample> sample)
+HRESULT H264Encoder::ProcessInput(ComPtr<IMFSample> &sample)
 {
 	HRESULT hr = S_OK;
 	if (async) {
@@ -272,17 +314,32 @@ bool H264Encoder::ProcessInput(UINT8 **data, UINT32 *linesize, UINT64 pts,
 	HRC(sample->SetSampleTime(pts * sampleDur));
 	HRC(sample->SetSampleDuration(sampleDur));
 
-	hr = ProcessInput(sample);
+	HRC(DrainEvents());
 
-	while (hr == MF_E_NOTACCEPTING) {
-		hr = ProcessOutput();
-		if (SUCCEEDED(hr))
-			hr = ProcessInput(sample);
+	while (outputRequests > 0 && (hr = ProcessOutput()) == S_OK);
+
+	if (hr != MF_E_TRANSFORM_NEED_MORE_INPUT && FAILED(hr)) {
+		MF_LOG_COM("ProcessOutput()", hr);
+		goto fail;
 	}
-	if (FAILED(hr)) {
-		MF_LOG_COM("transform->ProcessInput()", hr);
-		return false;
+	
+	while (inputRequests == 0) {
+		if ((hr = DrainEvent(false)) == MF_E_NO_EVENTS_AVAILABLE) {
+			Sleep(1);
+			continue;
+		}
+		if (FAILED(hr)) {
+			MF_LOG_COM("DrainEvent()", hr);
+			goto fail;
+		}
+		if (outputRequests > 0) {
+			hr = ProcessOutput();
+			if (hr != MF_E_TRANSFORM_NEED_MORE_INPUT && FAILED(hr))
+				goto fail;
+		}
 	}
+
+	HRC(ProcessInput(sample));
 
 	*status = SUCCESS;
 	return true;
@@ -311,16 +368,14 @@ HRESULT H264Encoder::ProcessOutput()
 	std::unique_ptr<H264Frame> frame;
 
 	if (async) {
+
+		HRC(DrainEvents());
+
 		if (outputRequests == 0)
 			return S_OK;
 
 		outputRequests--;
 	}
-
-	HRC(transform->GetOutputStatus(&outputFlags));
-	if (outputFlags != MFT_OUTPUT_STATUS_SAMPLE_READY)
-		return S_OK;
-
 	
 	if (createOutputSample) {
 		HRC(transform->GetOutputStreamInfo(0, &outputInfo));
@@ -333,6 +388,8 @@ HRESULT H264Encoder::ProcessOutput()
 	while (true) {
 		hr = transform->ProcessOutput(0, 1, &output, 
 				&outputStatus);
+		ComPtr<IMFCollection> events(output.pEvents);
+
 		if (hr == MF_E_TRANSFORM_NEED_MORE_INPUT)
 			return hr;
 
@@ -389,6 +446,8 @@ HRESULT H264Encoder::ProcessOutput()
 
 	encodedFrames.push(std::move(frame));
 
+	MF_LOG(LOG_INFO, "Pushed.");
+
 	return S_OK;
 
 fail:
@@ -415,6 +474,8 @@ bool H264Encoder::ProcessOutput(UINT8 **data, UINT32 *dataLength,
 	activeFrame = std::move(encodedFrames.front());
 	encodedFrames.pop();
 	
+	MF_LOG(LOG_INFO, "Popped");
+
 	*data = activeFrame.get()->Data();
 	*dataLength = activeFrame.get()->DataLength();
 	*pts = activeFrame.get()->Pts();

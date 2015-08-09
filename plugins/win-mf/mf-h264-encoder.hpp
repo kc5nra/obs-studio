@@ -13,7 +13,6 @@
 #include <queue>
 #include <memory>
 #include <atomic>
-#include <mutex>
 
 #include <util/windows/ComPtr.hpp>
 #include "mf-encoder-descriptor.hpp"
@@ -132,12 +131,11 @@ namespace MF {
 		HRESULT CreateEmptySample(ComPtr<IMFSample> &sample,
 			ComPtr<IMFMediaBuffer> &buffer, DWORD length);
 
-		HRESULT ProcessInput(ComPtr<IMFSample> sample);
+		HRESULT ProcessInput(ComPtr<IMFSample> &sample);
 		HRESULT ProcessOutput();
 
-		void PushInputSample(ComPtr<IMFSample> &inputSample);
-		ComPtr<IMFSample> PopInputSample();
-
+		HRESULT DrainEvent(bool block);
+		HRESULT DrainEvents();
 	private:
 		const obs_encoder_t *encoder;
 		ComPtr<IMFActivate> activate;
@@ -153,12 +151,25 @@ namespace MF {
 
 		bool createOutputSample;
 		ComPtr<IMFTransform> transform;
-		std::queue<ComPtr<IMFSample>> inputSamples;
-		std::queue<std::unique_ptr<H264Frame>> encodedFrames;
-		std::unique_ptr<H264Frame> activeFrame;
+		
 		std::vector<BYTE> extraData;
+
+		// The frame returned by ProcessOutput
+		// Valid until the next call to ProcessOutput
+		std::unique_ptr<H264Frame> activeFrame;
+		
+		// Queued input samples that the encoder was not ready 
+		// to process
+		std::queue<ComPtr<IMFSample>> inputSamples;
+
+		// Queued output samples that have not been returned from
+		// ProcessOutput yet
+		std::queue<std::unique_ptr<H264Frame>> encodedFrames;
+		
+		
+		ComPtr<IMFMediaEventGenerator> eventGenerator;
 		std::atomic<UINT32> inputRequests = 0;
 		std::atomic<UINT32> outputRequests = 0;
-		std::mutex inputSamplesMutex;
+
 	};
 }
