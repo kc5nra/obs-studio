@@ -1,6 +1,7 @@
 #include <obs-module.h>
 
 #include <memory>
+#include <chrono>
 
 #include "mf-h264-encoder.hpp"
 #include "mf-encoder-descriptor.hpp"
@@ -16,25 +17,113 @@ struct MFH264_Encoder {
 	uint32_t height;
 	uint32_t framerateNum;
 	uint32_t framerateDen;
+	uint32_t keyint;
 	uint32_t bitrate;
+	uint32_t maxBitrate;
+	bool useMaxBitrate;
+	uint32_t bufferSize;
+	bool useBufferSize;
 	H264Profile profile;
 	H264RateControl rateControl;
 	H264QP qp;
+	bool lowLatency;
+	uint32_t bFrames;
 };
+
 static const char *MFH264_GetName()
 {
 	return obs_module_text("MFH264Enc");
 }
 
-#define TEXT_ENCODER      obs_module_text("Encoder")
-#define TEXT_BITRATE      obs_module_text("Bitrate")
-#define TEXT_RATE_CONTROL obs_module_text("RateControl")
-#define TEXT_QP           obs_module_text("QP")
-#define TEXT_QPI          obs_module_text("QPI")
-#define TEXT_QPP          obs_module_text("QPP")
-#define TEXT_QPB          obs_module_text("QPB")
-#define TEXT_PROFILE      obs_module_text("Profile")
-#define TEXT_NONE         obs_module_text("None")
+static void set_visible(obs_properties_t *ppts, const char *name, bool visible)
+{
+	obs_property_t *p = obs_properties_get(ppts, name);
+	obs_property_set_visible(p, visible);
+}
+
+static bool use_bufsize_modified(obs_properties_t *ppts, obs_property_t *p,
+	obs_data_t *settings)
+{
+	UNUSED_PARAMETER(p);
+
+	bool use_bufsize = obs_data_get_bool(settings, "use_bufsize");
+	set_visible(ppts, "buffer_size", use_bufsize);
+
+	return true;
+}
+
+static bool use_max_bitrate_modified(obs_properties_t *ppts, obs_property_t *p,
+	obs_data_t *settings)
+{
+	UNUSED_PARAMETER(p);
+
+	bool use_max_bitrate = obs_data_get_bool(settings, "use_max_bitrate");
+	set_visible(ppts, "max_bitrate", use_max_bitrate);
+
+	return true;
+}
+
+static bool rate_control_modified(obs_properties_t *ppts, obs_property_t *p,
+	obs_data_t *settings)
+{
+	H264RateControl rateControl = (H264RateControl)obs_data_get_int(
+		settings, "rate_control");
+
+	set_visible(ppts, "bitrate", false);
+	set_visible(ppts, "use_bufsize", false);
+	set_visible(ppts, "buffer_size", false);
+	set_visible(ppts, "use_max_bitrate", false);
+	set_visible(ppts, "max_bit_rate", false);
+	set_visible(ppts, "qpi", false);
+	set_visible(ppts, "qpp", false);
+	set_visible(ppts, "qpb", false);
+
+	switch (rateControl) {
+	case H264RateControlCBR:
+		use_bufsize_modified(ppts, NULL, settings);
+		use_max_bitrate_modified(ppts, NULL, settings);
+		set_visible(ppts, "bitrate", true);
+		set_visible(ppts, "use_bufsize", true);
+		set_visible(ppts, "use_max_bitrate", true);
+		break;
+	case H264RateControlConstrainedVBR:
+		use_bufsize_modified(ppts, NULL, settings);
+		use_max_bitrate_modified(ppts, NULL, settings);
+		set_visible(ppts, "bitrate", true);
+		set_visible(ppts, "use_bufsize", true);
+		set_visible(ppts, "use_max_bitrate", true);
+		break;
+	case H264RateControlVBR:
+		use_bufsize_modified(ppts, NULL, settings);
+		set_visible(ppts, "bitrate", true);
+		set_visible(ppts, "use_bufsize", true);
+		break;
+	case H264RateControlCQP:
+		set_visible(ppts, "qpi", true);
+		set_visible(ppts, "qpp", true);
+		set_visible(ppts, "qpb", true);
+		break;
+	default: break;
+	}
+
+	return true;
+}
+
+#define TEXT_ENCODER         obs_module_text("Encoder")
+#define TEXT_LOW_LAT         obs_module_text("LowLatency")
+#define TEXT_B_FRAMES        obs_module_text("BFrames")
+#define TEXT_BITRATE         obs_module_text("Bitrate")
+#define TEXT_CUSTOM_BUF      obs_module_text("CustomBufsize")
+#define TEXT_BUF_SIZE        obs_module_text("BufferSize")
+#define TEXT_USE_MAX_BITRATE obs_module_text("CustomMaxBitrate")
+#define TEXT_MAX_BITRATE     obs_module_text("MaxBitrate")
+#define TEXT_KEYINT_SEC      obs_module_text("KeyframeIntervalSec")
+#define TEXT_RATE_CONTROL    obs_module_text("RateControl")
+#define TEXT_QPI             obs_module_text("QPI")
+#define TEXT_QPP             obs_module_text("QPP")
+#define TEXT_QPB             obs_module_text("QPB")
+#define TEXT_PROFILE         obs_module_text("Profile")
+#define TEXT_NONE            obs_module_text("None")
 
 static obs_properties_t *MFH264_GetProperties(void *)
 {
@@ -49,25 +138,40 @@ static obs_properties_t *MFH264_GetProperties(void *)
 				e->GuidString().c_str());
 	}
 
-	obs_properties_add_int(props, "bitrate", TEXT_BITRATE, 50, 10000000, 
-			1);
-
-	obs_property_t *list = obs_properties_add_list(props, "rate_control",
-		TEXT_RATE_CONTROL, OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
-	obs_property_list_add_int(list, "CBR", H264RateControlCBR);
-	obs_property_list_add_int(list, "VBR", H264RateControlVBR);
-	obs_property_list_add_int(list, "Constrained VBR", 
-			H264RateControlConstrainedVBR);
-	obs_property_list_add_int(list, "CQP", H264RateControlCQP);
-
-	list = obs_properties_add_list(props, "profile", 
+	obs_property_t *list = obs_properties_add_list(props, "profile",
 		TEXT_PROFILE, OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
-	obs_property_list_add_int(list, TEXT_NONE, H264ProfileBaseline);
 	obs_property_list_add_int(list, "baseline", H264ProfileBaseline);
 	obs_property_list_add_int(list, "main", H264ProfileMain);
 	obs_property_list_add_int(list, "high", H264ProfileHigh);
 
-	obs_properties_add_int(props, "qp", TEXT_QP, 0, 51, 1);
+	obs_properties_add_int(props, "keyint_sec", TEXT_KEYINT_SEC, 0, 20, 1);
+	obs_properties_add_bool(props, "low_latency", TEXT_LOW_LAT);
+	obs_properties_add_int(props, "b_frames", TEXT_B_FRAMES, 0, 16, 1);
+
+	list = obs_properties_add_list(props, "rate_control",
+		TEXT_RATE_CONTROL, OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+	obs_property_list_add_int(list, "CBR", H264RateControlCBR);
+	obs_property_list_add_int(list, "VBR", H264RateControlVBR);
+	obs_property_list_add_int(list, "Constrained VBR",
+		H264RateControlConstrainedVBR);
+	obs_property_list_add_int(list, "CQP", H264RateControlCQP);
+
+	obs_property_set_modified_callback(list, rate_control_modified);
+
+	obs_properties_add_int(props, "bitrate", TEXT_BITRATE, 50, 10000000,
+			1);
+
+	p = obs_properties_add_bool(props, "use_bufsize", TEXT_CUSTOM_BUF);
+	obs_property_set_modified_callback(p, use_bufsize_modified);
+	obs_properties_add_int(props, "buffer_size", TEXT_BUF_SIZE, 0,
+		10000000, 1);
+
+	p = obs_properties_add_bool(props, "use_max_bitrate",
+			TEXT_USE_MAX_BITRATE);
+	obs_property_set_modified_callback(p, use_max_bitrate_modified);
+	obs_properties_add_int(props, "max_bitrate", TEXT_MAX_BITRATE, 50,
+		10000000, 1);
+
 	obs_properties_add_int(props, "qpi", TEXT_QPI, 0, 51, 1);
 	obs_properties_add_int(props, "qpp", TEXT_QPP, 0, 51, 1);
 	obs_properties_add_int(props, "qpb", TEXT_QPB, 0, 51, 1);
@@ -80,9 +184,15 @@ static void MFH264_GetDefaults(obs_data_t *settings)
 	obs_data_set_default_string(settings, "encoder_guid",
 			"{6CA50344-051A-4DED-9779-A43305165E35}");
 	obs_data_set_default_int(settings, "bitrate", 2500);
-	obs_data_set_default_int(settings, "profile", H264ProfileBaseline);
+	obs_data_set_default_bool(settings, "low_latency", true);
+	obs_data_set_default_int(settings, "b_frames", 2);
+	obs_data_set_default_bool(settings, "use_bufsize", false);
+	obs_data_set_default_int(settings, "buffer_size", 2500);
+	obs_data_set_default_bool(settings, "use_max_bitrate", false);
+	obs_data_set_default_int(settings, "max_bitrate", 2500);
+	obs_data_set_default_int(settings, "keyint_sec", 2);
 	obs_data_set_default_int(settings, "rate_control", H264RateControlCBR);
-	obs_data_set_default_int(settings, "qp", 26);
+	obs_data_set_default_int(settings, "profile", H264ProfileMain);
 	obs_data_set_default_int(settings, "qpi", 26);
 	obs_data_set_default_int(settings, "qpp", 26);
 	obs_data_set_default_int(settings, "qpb", 26);
@@ -113,16 +223,76 @@ static void UpdateParams(MFH264_Encoder *enc, obs_data_t *settings)
 	}
 	enc->descriptor = ed;
 
-	enc->bitrate = (UINT32)obs_data_get_int(settings, "bitrate");
 	enc->profile = (H264Profile)obs_data_get_int(settings, "profile");
+
+
 	enc->rateControl = (H264RateControl)obs_data_get_int(settings, 
 			"rate_control");
+
+	enc->keyint = (UINT32)obs_data_get_int(settings, "keyint_sec");
+
+	enc->bitrate = (UINT32)obs_data_get_int(settings, "bitrate");
+
+	enc->useBufferSize = obs_data_get_bool(settings, "use_bufsize");
+	enc->bufferSize = (uint32_t)obs_data_get_int(settings, "buffer_size");
 	
-	enc->qp.defaultQp = (uint16_t)obs_data_get_int(settings, "qp");
+	enc->useMaxBitrate = obs_data_get_bool(settings, "use_max_bitrate");
+	enc->maxBitrate = (uint32_t)obs_data_get_int(settings, "max_bitrate");
+
+	enc->qp.defaultQp = (uint16_t)obs_data_get_int(settings, "qpi");
 	enc->qp.i = (uint16_t)obs_data_get_int(settings, "qpi");
 	enc->qp.p = (uint16_t)obs_data_get_int(settings, "qpp");
 	enc->qp.b = (uint16_t)obs_data_get_int(settings, "qpb");
+
+	enc->lowLatency = obs_data_get_bool(settings, "low_latency");
+	enc->bFrames = (uint32_t)obs_data_get_int(settings, "b_frames");
+}
+
+static bool ApplyCBR(MFH264_Encoder *enc)
+{
+	enc->h264Encoder->SetBitrate(enc->bitrate);
 	
+	if (enc->useMaxBitrate)
+		enc->h264Encoder->SetMaxBitrate(enc->maxBitrate);
+	else
+		enc->h264Encoder->SetMaxBitrate(enc->bitrate);
+
+	if (enc->useBufferSize)
+		enc->h264Encoder->SetBufferSize(enc->bufferSize);
+
+	return true;
+}
+
+static bool ApplyCVBR(MFH264_Encoder *enc)
+{
+	enc->h264Encoder->SetBitrate(enc->bitrate);
+
+	if (enc->useMaxBitrate)
+		enc->h264Encoder->SetMaxBitrate(enc->maxBitrate);
+	else
+		enc->h264Encoder->SetMaxBitrate(enc->bitrate);
+
+	if (enc->useBufferSize)
+		enc->h264Encoder->SetBufferSize(enc->bufferSize);
+
+	return true;
+}
+
+static bool ApplyVBR(MFH264_Encoder *enc)
+{
+	enc->h264Encoder->SetBitrate(enc->bitrate);
+
+	if (enc->useBufferSize)
+		enc->h264Encoder->SetBufferSize(enc->bufferSize);
+
+	return true;
+}
+
+static bool ApplyCQP(MFH264_Encoder *enc)
+{
+	enc->h264Encoder->SetQP(enc->qp);
+
+	return true;
 }
 
 static void *MFH264_Create(obs_data_t *settings, obs_encoder_t *encoder)
@@ -139,12 +309,29 @@ static void *MFH264_Create(obs_data_t *settings, obs_encoder_t *encoder)
 			enc->height, 
 			enc->framerateNum, 
 			enc->framerateDen, 
-			enc->bitrate, 
-			enc->profile, 
-			enc->rateControl, 
-			enc->qp));
+			enc->profile,
+			enc->bitrate));
 
-	if (!enc->h264Encoder->Initialize())
+	auto applySettings = [&]() {
+		enc.get()->h264Encoder->SetRateControl(enc->rateControl);
+		enc.get()->h264Encoder->SetKeyframeInterval(enc->keyint);
+		enc.get()->h264Encoder->SetLowLatency(enc->lowLatency);
+		enc.get()->h264Encoder->SetBFrameCount(enc->bFrames);
+
+		switch (enc->rateControl) {
+		case H264RateControlCBR:
+			return ApplyCBR(enc.get());
+		case H264RateControlConstrainedVBR:
+			return ApplyCVBR(enc.get());
+		case H264RateControlVBR:
+			return ApplyVBR(enc.get());
+		case H264RateControlCQP:
+			return ApplyCQP(enc.get());
+		default: return false;
+		}
+	};
+
+	if (!enc->h264Encoder->Initialize(applySettings))
 		return nullptr;
 
 	return enc.release();

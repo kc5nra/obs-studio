@@ -9,12 +9,15 @@
 #include <mfapi.h>
 #include <mfidl.h>
 
+#include <wmcodecdsp.h>
+
 #include <vector>
 #include <queue>
 #include <memory>
 #include <atomic>
 
 #include <util/windows/ComPtr.hpp>
+
 #include "mf-encoder-descriptor.hpp"
 #include "mf-common.hpp"
 
@@ -33,22 +36,22 @@ namespace MF {
 	};
 
 	struct H264QP {
-		uint16_t defaultQp;
-		uint16_t i;
-		uint16_t p;
-		uint16_t b;
+		UINT16 defaultQp;
+		UINT16 i;
+		UINT16 p;
+		UINT16 b;
 
-		uint64_t Pack() {
-			return  (uint64_t)defaultQp |
-				((uint64_t)i << 16) |
-				((uint64_t)p << 32) |
-				((uint64_t)b << 48);
+		UINT64 Pack() {
+			return  (UINT64)defaultQp |
+				((UINT64)i << 16) |
+				((UINT64)p << 32) |
+				((UINT64)b << 48);
 		}
 	};
 
 	struct H264Frame {
 	public:
-		H264Frame(bool keyframe, uint64_t pts, uint64_t dts,
+		H264Frame(bool keyframe, UINT64 pts, UINT64 dts,
 				std::unique_ptr<std::vector<uint8_t>> data)
 			: keyframe(keyframe), pts(pts), dts(dts), 
 			  data(std::move(data))
@@ -78,14 +81,12 @@ namespace MF {
 			UINT32 height,
 			UINT32 framerateNum,
 			UINT32 framerateDen,
-			UINT32 bitrate,
 			H264Profile profile,
-			H264RateControl rateControl,
-			H264QP &qp);
+			UINT32 bitrate);
 
 		~H264Encoder();
 
-		bool Initialize();
+		bool Initialize(std::function<bool(void)> func);
 		bool ProcessInput(UINT8 **data, UINT32 *linesize, UINT64 pts,
 			Status *status);
 		bool ProcessOutput(UINT8 **data, UINT32 *dataLength,
@@ -94,10 +95,17 @@ namespace MF {
 		bool ExtraData(UINT8 **data, UINT32 *dataLength);
 
 		const obs_encoder_t *ObsEncoder() { return encoder; }
-		UINT32 Bitrate() { return bitrate; }
-		H264Profile Profile() { return profile; }
-		H264RateControl RateControl() { return rateControl; }
-		H264QP QP() { return qp; }
+
+	public:
+		bool SetBitrate(UINT32 bitrate);
+		bool SetQP(H264QP &qp);
+		bool SetMaxBitrate(UINT32 maxBitrate);
+		bool SetRateControl(H264RateControl rateControl);
+		bool SetKeyframeInterval(UINT32 seconds);
+		bool SetLowLatency(bool lowLatency);
+		bool SetBufferSize(UINT32 bufferSize);
+		bool SetBFrameCount(UINT32 bFrames);
+
 
 	private:
 		H264Encoder(H264Encoder const&) = delete;
@@ -125,13 +133,12 @@ namespace MF {
 		const UINT32 height;
 		const UINT32 framerateNum;
 		const UINT32 framerateDen;
-		UINT32 bitrate;
+		const UINT32 initialBitrate;
 		const H264Profile profile;
-		const H264RateControl rateControl;
-		H264QP qp;
 
 		bool createOutputSample;
 		ComPtr<IMFTransform> transform;
+		ComPtr<ICodecAPI> codecApi;
 		
 		std::vector<BYTE> extraData;
 
