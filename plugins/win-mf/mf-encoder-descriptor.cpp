@@ -1,6 +1,7 @@
 #include <obs-module.h>
 #include <util/platform.h>
 #include <memory>
+#include <algorithm>
 
 #include "mf-encoder-descriptor.hpp"
 
@@ -69,6 +70,28 @@ public:
 	inline bool operator!() const      { return !ptr; }
 };
 
+struct EncoderEntry {
+	const char *guid;
+	const char *name;
+} guidNameMap[] = {
+	{
+		"{6CA50344-051A-4DED-9779-A43305165E35}",
+		"EncoderSWMicrosoft"
+	},
+	{
+		"{ADC9BC80-0F41-46C6-AB75-D693D793597D}",
+		"EncoderHWAMD"
+	},
+	{
+		"{4BE8D3C0-0515-4A37-AD55-E4BAE19AF471}",
+		"EncoderHWIntel"
+	},
+	{
+		"{60F44560-5A20-4857-BFEF-D29773CB8040}",
+		"EncoderHWNVIDIA"
+	}
+};
+
 static std::string MBSToString(wchar_t *mbs)
 {
 	char *cstr;
@@ -81,14 +104,7 @@ static std::string MBSToString(wchar_t *mbs)
 static std::unique_ptr<EncoderDescriptor> CreateDescriptor(ComPtr<IMFActivate> activate)
 {
 	HRESULT hr;
-	ComHeapPtr<WCHAR> nameW;
-	hr = activate->GetAllocatedString(
-		MFT_FRIENDLY_NAME_Attribute,
-		&nameW,
-		NULL);
 
-	std::string name = MBSToString(nameW);
-	
 	UINT32 flags;
 	activate->GetUINT32(
 		MF_TRANSFORM_FLAGS_Attribute,
@@ -104,7 +120,17 @@ static std::unique_ptr<EncoderDescriptor> CreateDescriptor(ComPtr<IMFActivate> a
 	StringFromIID(guid, &guidW);
 	std::string guidString = MBSToString(guidW);
 
-	std::unique_ptr<EncoderDescriptor> descriptor(new EncoderDescriptor(activate, name, guid, guidString, isAsync, isHardware));
+	auto pred = [guidString](const EncoderEntry &name) {
+		return guidString == name.guid;
+	};
+
+	EncoderEntry *entry = std::find_if(std::begin(guidNameMap),
+			std::end(guidNameMap), pred);
+
+	std::unique_ptr<EncoderDescriptor> descriptor(new EncoderDescriptor(
+			activate, entry->name, guid, guidString, isAsync,
+			isHardware));
+
 	return descriptor;
 }
 
@@ -119,16 +145,16 @@ std::vector<std::shared_ptr<EncoderDescriptor>> EncoderDescriptor::Enumerate()
 	MFT_REGISTER_TYPE_INFO info = { MFMediaType_Video, MFVideoFormat_H264 };
 
 	UINT32 unFlags = 0;
-	
+
 	unFlags |= MFT_ENUM_FLAG_LOCALMFT;
 	unFlags |= MFT_ENUM_FLAG_TRANSCODE_ONLY;
-	
+
 	unFlags |= MFT_ENUM_FLAG_SYNCMFT;
 	unFlags |= MFT_ENUM_FLAG_ASYNCMFT;
 	unFlags |= MFT_ENUM_FLAG_HARDWARE;
 
 	unFlags |= MFT_ENUM_FLAG_SORTANDFILTER;
-	
+
 	hr = MFTEnumEx(MFT_CATEGORY_VIDEO_ENCODER,
 		unFlags,
 		NULL,

@@ -18,7 +18,7 @@ public:
 	static std::vector<std::shared_ptr<EncoderDescriptor>> EncoderDescriptor::Enumerate();
 
 public:
-	EncoderDescriptor(ComPtr<IMFActivate> activate, const std::string &name, GUID &guid, const std::string &guidString, bool isAsync, bool isHardware) 
+	EncoderDescriptor(ComPtr<IMFActivate> activate, const std::string &name, GUID &guid, const std::string &guidString, bool isAsync, bool isHardware)
 		: activate(activate), name(name), guid(guid), guidString(guidString), isAsync(isAsync), isHardware(isHardware)
 	{}
 
@@ -32,7 +32,7 @@ public:
 	bool Async() { return isAsync; }
 	bool Hardware() { return isHardware; }
 
-private:	
+private:
 	ComPtr<IMFActivate> activate;
 	std::string name;
 	GUID guid;

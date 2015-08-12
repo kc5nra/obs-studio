@@ -41,19 +41,32 @@ namespace MF {
 		UINT16 p;
 		UINT16 b;
 
-		UINT64 Pack() {
-			return  (UINT64)defaultQp |
-				((UINT64)i << 16) |
-				((UINT64)p << 32) |
-				((UINT64)b << 48);
+		UINT64 Pack(bool packDefault) {
+			int shift = packDefault ? 0 : 16;
+			UINT64 packedQp;
+			if (packDefault)
+				packedQp = defaultQp;
+
+			packedQp |= i << shift;
+			shift += 16;
+			packedQp |= p << shift;
+			shift += 16;
+			packedQp |= b << shift;
+
+			return packedQp;
 		}
+	};
+
+	enum H264EntropyEncoding {
+		H264EntopyEncodingCAVLC,
+		H264EntopyEncodingCAVAC
 	};
 
 	struct H264Frame {
 	public:
 		H264Frame(bool keyframe, UINT64 pts, UINT64 dts,
 				std::unique_ptr<std::vector<uint8_t>> data)
-			: keyframe(keyframe), pts(pts), dts(dts), 
+			: keyframe(keyframe), pts(pts), dts(dts),
 			  data(std::move(data))
 		{}
 		bool Keyframe() { return keyframe; }
@@ -105,7 +118,9 @@ namespace MF {
 		bool SetLowLatency(bool lowLatency);
 		bool SetBufferSize(UINT32 bufferSize);
 		bool SetBFrameCount(UINT32 bFrames);
-
+		bool SetEntropyEncoding(H264EntropyEncoding entropyEncoding);
+		bool SetMinQP(UINT32 minQp);
+		bool SetMaxQP(UINT32 maxQp);
 
 	private:
 		H264Encoder(H264Encoder const&) = delete;
@@ -139,22 +154,21 @@ namespace MF {
 		bool createOutputSample;
 		ComPtr<IMFTransform> transform;
 		ComPtr<ICodecAPI> codecApi;
-		
+
 		std::vector<BYTE> extraData;
 
 		// The frame returned by ProcessOutput
 		// Valid until the next call to ProcessOutput
 		std::unique_ptr<H264Frame> activeFrame;
-		
-		// Queued input samples that the encoder was not ready 
+
+		// Queued input samples that the encoder was not ready
 		// to process
 		std::queue<ComPtr<IMFSample>> inputSamples;
 
 		// Queued output samples that have not been returned from
 		// ProcessOutput yet
 		std::queue<std::unique_ptr<H264Frame>> encodedFrames;
-		
-		
+
 		ComPtr<IMFMediaEventGenerator> eventGenerator;
 		std::atomic<UINT32> inputRequests = 0;
 		std::atomic<UINT32> outputRequests = 0;

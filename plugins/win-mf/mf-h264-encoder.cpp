@@ -44,7 +44,6 @@ static bool ProcessNV12(std::function<void(size_t height, int plane)> func,
 	int plane = 0;
 
 	func(height, plane++);
-	func(height / 2, plane++);
 	func(height / 2, plane);
 
 	return true;
@@ -83,19 +82,19 @@ HRESULT H264Encoder::CreateMediaTypes(ComPtr<IMFMediaType> &i,
 	HRC(i->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video));
 	HRC(i->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_NV12));
 	HRC(MFSetAttributeSize(i, MF_MT_FRAME_SIZE, width, height));
-	HRC(MFSetAttributeRatio(i, MF_MT_FRAME_RATE, framerateNum, 
+	HRC(MFSetAttributeRatio(i, MF_MT_FRAME_RATE, framerateNum,
 			framerateDen));
-	HRC(i->SetUINT32(MF_MT_INTERLACE_MODE, 
+	HRC(i->SetUINT32(MF_MT_INTERLACE_MODE,
 			MFVideoInterlaceMode::MFVideoInterlace_Progressive));
 	HRC(MFSetAttributeRatio(i, MF_MT_PIXEL_ASPECT_RATIO, 1, 1));
 
 	HRC(o->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video));
 	HRC(o->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_H264));
 	HRC(MFSetAttributeSize(o, MF_MT_FRAME_SIZE, width, height));
-	HRC(MFSetAttributeRatio(o, MF_MT_FRAME_RATE, framerateNum, 
+	HRC(MFSetAttributeRatio(o, MF_MT_FRAME_RATE, framerateNum,
 			framerateDen));
 	HRC(o->SetUINT32(MF_MT_AVG_BITRATE, initialBitrate * 1000));
-	HRC(o->SetUINT32(MF_MT_INTERLACE_MODE, 
+	HRC(o->SetUINT32(MF_MT_INTERLACE_MODE,
 			MFVideoInterlaceMode::MFVideoInterlace_Progressive));
 	HRC(MFSetAttributeRatio(o, MF_MT_PIXEL_ASPECT_RATIO, 1, 1));
 	HRC(o->SetUINT32(MF_MT_MPEG2_LEVEL, (UINT32)-1));
@@ -151,7 +150,7 @@ fail:
 HRESULT H264Encoder::InitializeEventGenerator()
 {
 	HRESULT hr;
-	
+
 	HRC(transform->QueryInterface(&eventGenerator));
 
 	return S_OK;
@@ -171,10 +170,10 @@ HRESULT H264Encoder::InitializeExtraData()
 	HRC(transform->GetOutputCurrentType(0, &inputType));
 
 	HRC(inputType->GetBlobSize(MF_MT_MPEG_SEQUENCE_HEADER, &headerSize));
-	
+
 	extraData.resize(headerSize);
-	
-	HRC(inputType->GetBlob(MF_MT_MPEG_SEQUENCE_HEADER, extraData.data(), 
+
+	HRC(inputType->GetBlob(MF_MT_MPEG_SEQUENCE_HEADER, extraData.data(),
 			headerSize, NULL));
 
 	return S_OK;
@@ -235,7 +234,42 @@ bool H264Encoder::SetQP(H264QP &qp)
 				UINT32(MapQpToQuality(qp))));
 		HRL(SetCodecProperty(codecApi,
 				CODECAPI_AVEncVideoEncodeQP,
-				UINT64(qp.Pack())));
+				UINT64(qp.Pack(true))));
+		HRL(SetCodecProperty(codecApi,
+				CODECAPI_AVEncVideoEncodeFrameTypeQP,
+				UINT64(qp.Pack(false))));
+	}
+
+	return true;
+
+fail:
+	return false;
+}
+
+bool H264Encoder::SetMinQP(UINT32 minQp)
+{
+	HRESULT hr;
+
+	if (codecApi) {
+		HR_CHECK(LOG_WARNING, SetCodecProperty(codecApi,
+				CODECAPI_AVEncVideoMinQP,
+				UINT32(minQp)));
+	}
+
+	return true;
+
+fail:
+	return false;
+}
+
+bool H264Encoder::SetMaxQP(UINT32 maxQp)
+{
+	HRESULT hr;
+
+	if (codecApi) {
+		HR_CHECK(LOG_WARNING, SetCodecProperty(codecApi,
+				CODECAPI_AVEncVideoMaxQP,
+				UINT32(maxQp)));
 	}
 
 	return true;
@@ -340,6 +374,23 @@ bool H264Encoder::SetBFrameCount(UINT32 bFrames)
 fail:
 	return false;
 }
+
+bool H264Encoder::SetEntropyEncoding(H264EntropyEncoding entropyEncoding)
+{
+	HRESULT hr;
+
+	if (codecApi) {
+		HR_CHECK(LOG_WARNING, SetCodecProperty(codecApi,
+				CODECAPI_AVEncMPVDefaultBPictureCount,
+				entropyEncoding == H264EntopyEncodingCAVAC));
+	}
+
+	return true;
+
+fail:
+	return false;
+}
+
 bool H264Encoder::Initialize(std::function<bool(void)> func)
 {
 	HRESULT hr;
@@ -347,20 +398,20 @@ bool H264Encoder::Initialize(std::function<bool(void)> func)
 	ComPtr<IMFMediaType> inputType, outputType;
 	ComPtr<IMFAttributes> transformAttributes;
 	MFT_OUTPUT_STREAM_INFO streamInfo = {0};
-	
+
 	HRC(CoCreateInstance(guid, NULL, CLSCTX_INPROC_SERVER,
 			IID_PPV_ARGS(&transform)));
-	
+
 	HRC(CreateMediaTypes(inputType, outputType));
 
 	if (async) {
 		HRC(transform->GetAttributes(&transformAttributes));
-		HRC(transformAttributes->SetUINT32(MF_TRANSFORM_ASYNC_UNLOCK, 
+		HRC(transformAttributes->SetUINT32(MF_TRANSFORM_ASYNC_UNLOCK,
 				TRUE));
 	}
 
 	HRC(transform->QueryInterface(&codecApi));
-	
+
 	if (func && !func()) {
 		MF_LOG(LOG_ERROR, "Failed setting custom properties");
 		goto fail;
@@ -369,25 +420,25 @@ bool H264Encoder::Initialize(std::function<bool(void)> func)
 	MF_LOG(LOG_INFO, "Setting output type to transform");
 	LogMediaType(outputType.Get());
 	HRC(transform->SetOutputType(0, outputType.Get(), 0));
-	
+
 	MF_LOG(LOG_INFO, "Setting input type to transform");
 	LogMediaType(inputType.Get());
 	HRC(transform->SetInputType(0, inputType.Get(), 0));
-	
+
 	HRC(transform->ProcessMessage(MFT_MESSAGE_NOTIFY_BEGIN_STREAMING,
 		NULL));
 
 	HRC(transform->ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM,
 		NULL));
-	
+
 	if (async)
 		HRC(InitializeEventGenerator());
 
 	HRC(transform->GetOutputStreamInfo(0, &streamInfo));
-	createOutputSample = !(streamInfo.dwFlags & 
+	createOutputSample = !(streamInfo.dwFlags &
 			       (MFT_OUTPUT_STREAM_PROVIDES_SAMPLES |
 			        MFT_OUTPUT_STREAM_CAN_PROVIDE_SAMPLES));
-	
+
 	return true;
 
 fail:
@@ -475,7 +526,7 @@ fail:
 	return hr;
 }
 
-bool H264Encoder::ProcessInput(UINT8 **data, UINT32 *linesize, UINT64 pts, 
+bool H264Encoder::ProcessInput(UINT8 **data, UINT32 *linesize, UINT64 pts,
 		Status *status)
 {
 	HRESULT hr;
@@ -492,9 +543,9 @@ bool H264Encoder::ProcessInput(UINT8 **data, UINT32 *linesize, UINT64 pts,
 	HRC(buffer->Lock(&bufferData, NULL, NULL));
 
 	ProcessNV12([&, this](size_t height, int plane) {
-		size_t l = linesize[plane] * height;
-		memcpy(bufferData, data[plane], l);
-		bufferData += l;
+		HRESULT hr = MFCopyImage(bufferData, width, data[plane],
+				linesize[plane], width, height);
+		bufferData += width * height;
 	}, height);
 
 	HRC(buffer->Unlock());
@@ -528,7 +579,7 @@ bool H264Encoder::ProcessInput(UINT8 **data, UINT32 *linesize, UINT64 pts,
 			}
 			if (outputRequests > 0) {
 				hr = ProcessOutput();
-				if (hr != MF_E_TRANSFORM_NEED_MORE_INPUT && 
+				if (hr != MF_E_TRANSFORM_NEED_MORE_INPUT &&
 				    FAILED(hr))
 					goto fail;
 			}
@@ -550,7 +601,7 @@ HRESULT H264Encoder::ProcessOutput()
 	HRESULT hr;
 	ComPtr<IMFSample> sample;
 	MFT_OUTPUT_STREAM_INFO outputInfo = { 0 };
-	
+
 	DWORD outputStatus = 0;
 	MFT_OUTPUT_DATA_BUFFER output = { 0 };
 	ComPtr<IMFMediaBuffer> buffer;
@@ -564,7 +615,6 @@ HRESULT H264Encoder::ProcessOutput()
 	std::unique_ptr<H264Frame> frame;
 
 	if (async) {
-
 		HRC(DrainEvents());
 
 		if (outputRequests == 0)
@@ -582,7 +632,7 @@ HRESULT H264Encoder::ProcessOutput()
 	}
 
 	while (true) {
-		hr = transform->ProcessOutput(0, 1, &output, 
+		hr = transform->ProcessOutput(0, 1, &output,
 				&outputStatus);
 		ComPtr<IMFCollection> events(output.pEvents);
 
@@ -613,11 +663,11 @@ HRESULT H264Encoder::ProcessOutput()
 
 	if (!createOutputSample)
 		sample.Set(output.pSample);
-	
+
 
 	HRC(sample->GetBufferByIndex(0, &buffer));
 
-	bool keyframe = !!MFGetAttributeUINT32(sample, 
+	bool keyframe = !!MFGetAttributeUINT32(sample,
 			MFSampleExtension_CleanPoint, FALSE);
 
 	HRC(buffer->Lock(&bufferData, NULL, &bufferLength));
@@ -626,22 +676,22 @@ HRESULT H264Encoder::ProcessOutput()
 		HRC(InitializeExtraData());
 
 	data->reserve(bufferLength + extraData.size());
-	
+
 	if (keyframe)
-		data->insert(data->end(), extraData.begin(), extraData.end()); 
-	
+		data->insert(data->end(), extraData.begin(), extraData.end());
+
 	data->insert(data->end(), &bufferData[0], &bufferData[bufferLength]);
 	HRC(buffer->Unlock());
-	
+
 	HRC(sample->GetSampleDuration(&sampleDur));
 	HRC(sample->GetSampleTime(&samplePts));
 
-	sampleDts = MFGetAttributeUINT64(sample, 
+	sampleDts = MFGetAttributeUINT64(sample,
 			MFSampleExtension_DecodeTimestamp, samplePts);
 
-	frame.reset(new H264Frame(keyframe, 
-			samplePts / sampleDur, 
-			sampleDts / sampleDur, 
+	frame.reset(new H264Frame(keyframe,
+			samplePts / sampleDur,
+			sampleDts / sampleDur,
 			std::move(data)));
 
 	encodedFrames.push(std::move(frame));
@@ -671,7 +721,7 @@ bool H264Encoder::ProcessOutput(UINT8 **data, UINT32 *dataLength,
 
 	activeFrame = std::move(encodedFrames.front());
 	encodedFrames.pop();
-	
+
 	*data = activeFrame.get()->Data();
 	*dataLength = activeFrame.get()->DataLength();
 	*pts = activeFrame.get()->Pts();
