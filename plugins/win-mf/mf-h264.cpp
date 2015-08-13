@@ -32,6 +32,8 @@ struct MFH264_Encoder {
 	uint32_t maxQp;
 	bool lowLatency;
 	uint32_t bFrames;
+
+	const char *profiler_encode = nullptr;
 };
 
 #define TEXT_ENCODER         obs_module_text("Encoder")
@@ -188,7 +190,7 @@ static obs_properties_t *MFH264_GetProperties(void *)
 	auto encoders = MF::EncoderDescriptor::Enumerate();
 	for (auto e : encoders) {
 		obs_property_list_add_string(p,
-				obs_module_text(e->Name().c_str()),
+				obs_module_text(e->Name()),
 				e->GuidString().c_str());
 	}
 
@@ -367,6 +369,8 @@ static void *MFH264_Create(obs_data_t *settings, obs_encoder_t *encoder)
 
 	UpdateParams(enc.get(), settings);
 
+	ProfileScope(enc->descriptor->Name());
+
 	enc->h264Encoder.reset(new H264Encoder(encoder,
 			enc->descriptor,
 			enc->width,
@@ -427,6 +431,13 @@ static bool MFH264_Encode(void *data, struct encoder_frame *frame,
 {
 	MFH264_Encoder *enc = static_cast<MFH264_Encoder *>(data);
 	Status status;
+
+	if (!enc->profiler_encode)
+		 enc->profiler_encode = profile_store_name(
+				obs_get_profiler_name_store(),
+				"MFH264_Encode(%s)", enc->descriptor->Name());
+
+	ProfileScope(enc->profiler_encode);
 
 	*received_packet = false;
 

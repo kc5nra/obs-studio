@@ -1,9 +1,11 @@
 #include <obs-module.h>
+#include <util/profiler.h>
 
 #include "mf-common.hpp"
 
 extern "C" extern void RegisterMFAACEncoder();
 extern void RegisterMFH264Encoder();
+
 
 extern "C" bool obs_module_load(void)
 {
