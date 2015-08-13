@@ -39,5 +39,6 @@ private:
 	std::string guidString;
 	bool isAsync;
 	bool isHardware;
+	const char *profiler_name;
 };
 };

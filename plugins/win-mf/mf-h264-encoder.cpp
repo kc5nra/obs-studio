@@ -1,3 +1,6 @@
+#include <obs-module.h>
+#include <util/profiler.hpp>
+
 #include "mf-common.hpp"
 #include "mf-h264-encoder.hpp"
 #include "mf-async-callback.hpp"
@@ -50,8 +53,7 @@ static bool ProcessNV12(std::function<void(size_t height, int plane)> func,
 }
 
 H264Encoder::H264Encoder(const obs_encoder_t *encoder,
-	GUID &guid,
-	bool async,
+	std::shared_ptr<EncoderDescriptor> descriptor,
 	UINT32 width,
 	UINT32 height,
 	UINT32 framerateNum,
@@ -59,8 +61,7 @@ H264Encoder::H264Encoder(const obs_encoder_t *encoder,
 	H264Profile profile,
 	UINT32 bitrate)
 	: encoder(encoder),
-	guid(guid),
-	async(async),
+	descriptor(descriptor),
 	width(width),
 	height(height),
 	framerateNum(framerateNum),
@@ -393,18 +394,20 @@ fail:
 
 bool H264Encoder::Initialize(std::function<bool(void)> func)
 {
+	ProfileScope("H264Encoder::Initialize");
+
 	HRESULT hr;
 
 	ComPtr<IMFMediaType> inputType, outputType;
 	ComPtr<IMFAttributes> transformAttributes;
 	MFT_OUTPUT_STREAM_INFO streamInfo = {0};
 
-	HRC(CoCreateInstance(guid, NULL, CLSCTX_INPROC_SERVER,
+	HRC(CoCreateInstance(descriptor->Guid(), NULL, CLSCTX_INPROC_SERVER,
 			IID_PPV_ARGS(&transform)));
 
 	HRC(CreateMediaTypes(inputType, outputType));
 
-	if (async) {
+	if (descriptor->Async()) {
 		HRC(transform->GetAttributes(&transformAttributes));
 		HRC(transformAttributes->SetUINT32(MF_TRANSFORM_ASYNC_UNLOCK,
 				TRUE));
@@ -431,7 +434,7 @@ bool H264Encoder::Initialize(std::function<bool(void)> func)
 	HRC(transform->ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM,
 		NULL));
 
-	if (async)
+	if (descriptor->Async())
 		HRC(InitializeEventGenerator());
 
 	HRC(transform->GetOutputStreamInfo(0, &streamInfo));
@@ -501,8 +504,10 @@ fail:
 
 HRESULT H264Encoder::ProcessInput(ComPtr<IMFSample> &sample)
 {
+	ProfileScope("H264Encoder::ProcessInput(sample)");
+
 	HRESULT hr = S_OK;
-	if (async) {
+	if (descriptor->Async()) {
 		if (inputRequests == 1 && inputSamples.empty()) {
 			inputRequests--;
 			return transform->ProcessInput(0, sample, 0);
@@ -529,6 +534,8 @@ fail:
 bool H264Encoder::ProcessInput(UINT8 **data, UINT32 *linesize, UINT64 pts,
 		Status *status)
 {
+	ProfileScope("H264Encoder::ProcessInput");
+
 	HRESULT hr;
 	ComPtr<IMFSample> sample;
 	ComPtr<IMFMediaBuffer> buffer;
@@ -540,13 +547,17 @@ bool H264Encoder::ProcessInput(UINT8 **data, UINT32 *linesize, UINT64 pts,
 
 	HRC(CreateEmptySample(sample, buffer, imageSize));
 
-	HRC(buffer->Lock(&bufferData, NULL, NULL));
+	{
+		ProfileScope("H264EncoderCopyInputSample");
 
-	ProcessNV12([&, this](size_t height, int plane) {
-		HRESULT hr = MFCopyImage(bufferData, width, data[plane],
+		HRC(buffer->Lock(&bufferData, NULL, NULL));
+
+		ProcessNV12([&, this](size_t height, int plane) {
+			HRESULT hr = MFCopyImage(bufferData, width, data[plane],
 				linesize[plane], width, height);
-		bufferData += width * height;
-	}, height);
+			bufferData += width * height;
+		}, height);
+	}
 
 	HRC(buffer->Unlock());
 	HRC(buffer->SetCurrentLength(imageSize));
@@ -556,7 +567,7 @@ bool H264Encoder::ProcessInput(UINT8 **data, UINT32 *linesize, UINT64 pts,
 	HRC(sample->SetSampleTime(pts * sampleDur));
 	HRC(sample->SetSampleDuration(sampleDur));
 
-	if (async) {
+	if (descriptor->Async()) {
 		HRC(DrainEvents());
 
 		while (outputRequests > 0 && (hr = ProcessOutput()) == S_OK);
@@ -598,6 +609,7 @@ fail:
 
 HRESULT H264Encoder::ProcessOutput()
 {
+
 	HRESULT hr;
 	ComPtr<IMFSample> sample;
 	MFT_OUTPUT_STREAM_INFO outputInfo = { 0 };
@@ -614,7 +626,7 @@ HRESULT H264Encoder::ProcessOutput()
 	ComPtr<IMFMediaType> type;
 	std::unique_ptr<H264Frame> frame;
 
-	if (async) {
+	if (descriptor->Async()) {
 		HRC(DrainEvents());
 
 		if (outputRequests == 0)
@@ -644,7 +656,7 @@ HRESULT H264Encoder::ProcessOutput()
 			HRC(transform->SetOutputType(0, type, 0));
 			MF_LOG(LOG_INFO, "Updating output type to transform");
 			LogMediaType(type);
-			if (async && outputRequests > 0) {
+			if (descriptor->Async() && outputRequests > 0) {
 				outputRequests--;
 				continue;
 			} else {
@@ -705,6 +717,8 @@ fail:
 bool H264Encoder::ProcessOutput(UINT8 **data, UINT32 *dataLength,
 		UINT64 *pts, UINT64 *dts, bool *keyframe, Status *status)
 {
+	ProfileScope("H264Encoder::ProcessOutput");
+
 	HRESULT hr;
 
 	hr = ProcessOutput();

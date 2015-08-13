@@ -1,4 +1,5 @@
 #include <obs-module.h>
+#include <util/profiler.hpp>
 
 #include <memory>
 #include <chrono>
@@ -33,105 +34,6 @@ struct MFH264_Encoder {
 	uint32_t bFrames;
 };
 
-static const char *MFH264_GetName()
-{
-	return obs_module_text("MFH264Enc");
-}
-
-static void set_visible(obs_properties_t *ppts, const char *name, bool visible)
-{
-	obs_property_t *p = obs_properties_get(ppts, name);
-	obs_property_set_visible(p, visible);
-}
-
-static bool use_bufsize_modified(obs_properties_t *ppts, obs_property_t *p,
-	obs_data_t *settings)
-{
-	UNUSED_PARAMETER(p);
-
-	bool use_bufsize = obs_data_get_bool(settings, "use_bufsize");
-	set_visible(ppts, "buffer_size", use_bufsize);
-
-	return true;
-}
-
-static bool use_max_bitrate_modified(obs_properties_t *ppts, obs_property_t *p,
-	obs_data_t *settings)
-{
-	UNUSED_PARAMETER(p);
-
-	bool advanced = obs_data_get_bool(settings, "use_advanced");
-	bool use_max_bitrate = obs_data_get_bool(settings, "use_max_bitrate");
-	set_visible(ppts, "max_bitrate", advanced && use_max_bitrate);
-
-	return true;
-}
-
-static bool use_advanced_modified(obs_properties_t *ppts, obs_property_t *p,
-	obs_data_t *settings)
-{
-	bool advanced = obs_data_get_bool(settings, "use_advanced");
-
-	set_visible(ppts, "min_qp", advanced);
-	set_visible(ppts, "max_qp", advanced);
-	set_visible(ppts, "low_latency", advanced);
-	set_visible(ppts, "b_frames", advanced);
-
-	H264RateControl rateControl = (H264RateControl)obs_data_get_int(
-		settings, "rate_control");
-
-	if (rateControl == H264RateControlCBR ||
-	    rateControl == H264RateControlVBR) {
-		set_visible(ppts, "use_max_bitrate", advanced);
-		use_max_bitrate_modified(ppts, NULL, settings);
-	}
-
-	return true;
-}
-
-static bool rate_control_modified(obs_properties_t *ppts, obs_property_t *p,
-	obs_data_t *settings)
-{
-	H264RateControl rateControl = (H264RateControl)obs_data_get_int(
-		settings, "rate_control");
-
-	bool advanced = obs_data_get_bool(settings, "use_advanced");
-
-	set_visible(ppts, "bitrate", false);
-	set_visible(ppts, "use_bufsize", false);
-	set_visible(ppts, "buffer_size", false);
-	set_visible(ppts, "use_max_bitrate", false);
-	set_visible(ppts, "max_bit_rate", false);
-	set_visible(ppts, "qpi", false);
-	set_visible(ppts, "qpp", false);
-	set_visible(ppts, "qpb", false);
-
-	switch (rateControl) {
-	case H264RateControlCBR:
-		use_bufsize_modified(ppts, NULL, settings);
-		use_max_bitrate_modified(ppts, NULL, settings);
-		set_visible(ppts, "bitrate", true);
-		set_visible(ppts, "use_bufsize", true);
-		set_visible(ppts, "use_max_bitrate", advanced);
-		break;
-	case H264RateControlVBR:
-		use_bufsize_modified(ppts, NULL, settings);
-		use_max_bitrate_modified(ppts, NULL, settings);
-		set_visible(ppts, "bitrate", true);
-		set_visible(ppts, "use_bufsize", true);
-		set_visible(ppts, "use_max_bitrate", advanced);
-		break;
-	case H264RateControlCQP:
-		set_visible(ppts, "qpi", true);
-		set_visible(ppts, "qpp", true);
-		set_visible(ppts, "qpb", true);
-		break;
-	default: break;
-	}
-
-	return true;
-}
-
 #define TEXT_ENCODER         obs_module_text("Encoder")
 #define TEXT_ADVANCED        obs_module_text("Advanced")
 #define TEXT_LOW_LAT         obs_module_text("LowLatency")
@@ -149,13 +51,138 @@ static bool rate_control_modified(obs_properties_t *ppts, obs_property_t *p,
 #define TEXT_QPP             obs_module_text("QPP")
 #define TEXT_QPB             obs_module_text("QPB")
 #define TEXT_PROFILE         obs_module_text("Profile")
-#define TEXT_NONE            obs_module_text("None")
+#define TEXT_CBR             obs_module_text("CBR")
+#define TEXT_VBR             obs_module_text("VBR")
+#define TEXT_CQP             obs_module_text("CQP")
+
+#define MFP(x) "mf_h264_" ## x
+#define MFP_ENCODER_GUID    MFP("encoder_guid")
+#define MFP_USE_ADVANCED    MFP("use_advanced")
+#define MFP_USE_LOWLAT      MFP("use_low_latency")
+#define MFP_B_FRAMES        MFP("b_frames")
+#define MFP_BITRATE         MFP("bitrate")
+#define MFP_USE_BUF_SIZE    MFP("use_buf_size")
+#define MFP_BUF_SIZE        MFP("buf_size")
+#define MFP_USE_MAX_BITRATE MFP("use_max_bitrate")
+#define MFP_MAX_BITRATE     MFP("use_max_bitrate")
+#define MFP_KEY_INT         MFP("key_int")
+#define MFP_RATE_CONTROL    MFP("rate_control")
+#define MFP_MIN_QP          MFP("min_qp")
+#define MFP_MAX_QP          MFP("max_qp")
+#define MFP_QP_I            MFP("qp_i")
+#define MFP_QP_P            MFP("qp_p")
+#define MFP_QP_B            MFP("qp_b")
+#define MFP_PROFILE         MFP("profile")
+
+static const char *MFH264_GetName()
+{
+	return obs_module_text("MFH264Enc");
+}
+
+static void set_visible(obs_properties_t *ppts, const char *name, bool visible)
+{
+	obs_property_t *p = obs_properties_get(ppts, name);
+	obs_property_set_visible(p, visible);
+}
+
+static bool use_bufsize_modified(obs_properties_t *ppts, obs_property_t *p,
+	obs_data_t *settings)
+{
+	UNUSED_PARAMETER(p);
+
+	bool use_bufsize = obs_data_get_bool(settings, MFP_USE_BUF_SIZE);
+	set_visible(ppts, MFP_BUF_SIZE, use_bufsize);
+
+	return true;
+}
+
+static bool use_max_bitrate_modified(obs_properties_t *ppts, obs_property_t *p,
+	obs_data_t *settings)
+{
+	UNUSED_PARAMETER(p);
+
+	bool advanced = obs_data_get_bool(settings, MFP_USE_ADVANCED);
+	bool use_max_bitrate = obs_data_get_bool(settings, MFP_USE_MAX_BITRATE);
+	set_visible(ppts, MFP_MAX_BITRATE, advanced && use_max_bitrate);
+
+	return true;
+}
+
+static bool use_advanced_modified(obs_properties_t *ppts, obs_property_t *p,
+	obs_data_t *settings)
+{
+	bool advanced = obs_data_get_bool(settings, MFP_USE_ADVANCED);
+
+	set_visible(ppts, MFP_MIN_QP,       advanced);
+	set_visible(ppts, MFP_MAX_QP,       advanced);
+	set_visible(ppts, MFP_USE_LOWLAT,  advanced);
+	set_visible(ppts, MFP_B_FRAMES,     advanced);
+
+	H264RateControl rateControl = (H264RateControl)obs_data_get_int(
+		settings, MFP_RATE_CONTROL);
+
+	if (rateControl == H264RateControlCBR ||
+	    rateControl == H264RateControlVBR) {
+		set_visible(ppts, MFP_USE_MAX_BITRATE, advanced);
+		use_max_bitrate_modified(ppts, NULL, settings);
+	}
+
+	return true;
+}
+
+static bool rate_control_modified(obs_properties_t *ppts, obs_property_t *p,
+	obs_data_t *settings)
+{
+	H264RateControl rateControl = (H264RateControl)obs_data_get_int(
+		settings, MFP_RATE_CONTROL);
+
+	bool advanced = obs_data_get_bool(settings, MFP_USE_ADVANCED);
+
+	set_visible(ppts, MFP_BITRATE,         false);
+	set_visible(ppts, MFP_USE_BUF_SIZE,    false);
+	set_visible(ppts, MFP_BUF_SIZE,        false);
+	set_visible(ppts, MFP_USE_MAX_BITRATE, false);
+	set_visible(ppts, MFP_MAX_BITRATE,     false);
+	set_visible(ppts, MFP_QP_I,            false);
+	set_visible(ppts, MFP_QP_P,            false);
+	set_visible(ppts, MFP_QP_B,            false);
+
+	switch (rateControl) {
+	case H264RateControlCBR:
+		use_bufsize_modified(ppts,     NULL, settings);
+		use_max_bitrate_modified(ppts, NULL, settings);
+
+		set_visible(ppts, MFP_BITRATE,         true);
+		set_visible(ppts, MFP_USE_BUF_SIZE,    true);
+		set_visible(ppts, MFP_USE_MAX_BITRATE, advanced);
+
+		break;
+	case H264RateControlVBR:
+		use_bufsize_modified(ppts,     NULL, settings);
+		use_max_bitrate_modified(ppts, NULL, settings);
+
+		set_visible(ppts, MFP_BITRATE,         true);
+		set_visible(ppts, MFP_USE_BUF_SIZE,    true);
+		set_visible(ppts, MFP_USE_MAX_BITRATE, advanced);
+
+		break;
+	case H264RateControlCQP:
+		set_visible(ppts, MFP_QP_I,            true);
+		set_visible(ppts, MFP_QP_P,            true);
+		set_visible(ppts, MFP_QP_B,            true);
+
+		break;
+	default: break;
+	}
+
+	return true;
+}
 
 static obs_properties_t *MFH264_GetProperties(void *)
 {
 	obs_properties_t *props = obs_properties_create();
 
-	obs_property_t *p = obs_properties_add_list(props, "encoder_guid",
+	obs_property_t *p = obs_properties_add_list(props, MFP_ENCODER_GUID,
 			TEXT_ENCODER, OBS_COMBO_TYPE_LIST,
 			OBS_COMBO_FORMAT_STRING);
 	auto encoders = MF::EncoderDescriptor::Enumerate();
@@ -165,71 +192,75 @@ static obs_properties_t *MFH264_GetProperties(void *)
 				e->GuidString().c_str());
 	}
 
-	obs_property_t *list = obs_properties_add_list(props, "profile",
+	obs_property_t *list = obs_properties_add_list(props, MFP_PROFILE,
 		TEXT_PROFILE, OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+
 	obs_property_list_add_int(list, "baseline", H264ProfileBaseline);
-	obs_property_list_add_int(list, "main", H264ProfileMain);
-	obs_property_list_add_int(list, "high", H264ProfileHigh);
+	obs_property_list_add_int(list, "main",     H264ProfileMain);
+	obs_property_list_add_int(list, "high",     H264ProfileHigh);
 
-	obs_properties_add_int(props, "keyint_sec", TEXT_KEYINT_SEC, 0, 20, 1);
+	obs_properties_add_int(props, MFP_KEY_INT, TEXT_KEYINT_SEC, 0, 20, 1);
 
-	list = obs_properties_add_list(props, "rate_control",
+	list = obs_properties_add_list(props, MFP_RATE_CONTROL,
 		TEXT_RATE_CONTROL, OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
-	obs_property_list_add_int(list, "CBR", H264RateControlCBR);
-	obs_property_list_add_int(list, "VBR", H264RateControlVBR);
-	obs_property_list_add_int(list, "CQP", H264RateControlCQP);
+
+	obs_property_list_add_int(list, TEXT_CBR, H264RateControlCBR);
+	obs_property_list_add_int(list, TEXT_VBR, H264RateControlVBR);
+	obs_property_list_add_int(list, TEXT_CQP, H264RateControlCQP);
 
 	obs_property_set_modified_callback(list, rate_control_modified);
 
-	obs_properties_add_int(props, "bitrate", TEXT_BITRATE, 50, 10000000,
+	obs_properties_add_int(props, MFP_BITRATE, TEXT_BITRATE, 50, 10000000,
 			1);
 
-	p = obs_properties_add_bool(props, "use_bufsize", TEXT_CUSTOM_BUF);
+	p = obs_properties_add_bool(props, MFP_USE_BUF_SIZE, TEXT_CUSTOM_BUF);
 	obs_property_set_modified_callback(p, use_bufsize_modified);
-	obs_properties_add_int(props, "buffer_size", TEXT_BUF_SIZE, 0,
-		10000000, 1);
+	obs_properties_add_int(props, MFP_BUF_SIZE, TEXT_BUF_SIZE, 0,
+			10000000, 1);
 
-	obs_properties_add_int(props, "qpi", TEXT_QPI, 0, 51, 1);
-	obs_properties_add_int(props, "qpp", TEXT_QPP, 0, 51, 1);
-	obs_properties_add_int(props, "qpb", TEXT_QPB, 0, 51, 1);
+	obs_properties_add_int(props, MFP_QP_I, TEXT_QPI, 0, 51, 1);
+	obs_properties_add_int(props, MFP_QP_P, TEXT_QPP, 0, 51, 1);
+	obs_properties_add_int(props, MFP_QP_B, TEXT_QPB, 0, 51, 1);
 
-	p = obs_properties_add_bool(props, "use_advanced", TEXT_ADVANCED);
+	p = obs_properties_add_bool(props, MFP_USE_ADVANCED, TEXT_ADVANCED);
 	obs_property_set_modified_callback(p, use_advanced_modified);
 
-	p = obs_properties_add_bool(props, "use_max_bitrate",
+	p = obs_properties_add_bool(props, MFP_USE_MAX_BITRATE,
 		TEXT_USE_MAX_BITRATE);
 	obs_property_set_modified_callback(p, use_max_bitrate_modified);
-	obs_properties_add_int(props, "max_bitrate", TEXT_MAX_BITRATE, 50,
+	obs_properties_add_int(props, MFP_MAX_BITRATE, TEXT_MAX_BITRATE, 50,
 		10000000, 1);
 
-	obs_properties_add_bool(props, "low_latency", TEXT_LOW_LAT);
-	obs_properties_add_int(props, "b_frames", TEXT_B_FRAMES, 0, 16, 1);
-	obs_properties_add_int(props, "min_qp", TEXT_MIN_QP, 1, 51, 1);
-	obs_properties_add_int(props, "max_qp", TEXT_MAX_QP, 1, 51, 1);
-
-	return props;
+	obs_properties_add_bool(props, MFP_USE_LOWLAT, TEXT_LOW_LAT);
+	obs_properties_add_int(props,  MFP_B_FRAMES,   TEXT_B_FRAMES, 0, 16, 1);
+	obs_properties_add_int(props,  MFP_MIN_QP,     TEXT_MIN_QP,   1, 51, 1);
+	obs_properties_add_int(props,  MFP_MAX_QP,     TEXT_MAX_QP,   1, 51, 1);
+		return props;
 }
+
+#define MF_H264_DEFAULT_GUID "{6CA50344-051A-4DED-9779-A43305165E35}"
 
 static void MFH264_GetDefaults(obs_data_t *settings)
 {
-	obs_data_set_default_string(settings, "encoder_guid",
-			"{6CA50344-051A-4DED-9779-A43305165E35}");
-	obs_data_set_default_int(settings, "bitrate", 2500);
-	obs_data_set_default_bool(settings, "low_latency", true);
-	obs_data_set_default_int(settings, "b_frames", 2);
-	obs_data_set_default_bool(settings, "use_bufsize", false);
-	obs_data_set_default_int(settings, "buffer_size", 2500);
-	obs_data_set_default_bool(settings, "use_max_bitrate", false);
-	obs_data_set_default_int(settings, "max_bitrate", 2500);
-	obs_data_set_default_int(settings, "keyint_sec", 2);
-	obs_data_set_default_int(settings, "rate_control", H264RateControlCBR);
-	obs_data_set_default_int(settings, "profile", H264ProfileMain);
-	obs_data_set_default_int(settings, "min_qp", 1);
-	obs_data_set_default_int(settings, "max_qp", 51);
-	obs_data_set_default_int(settings, "qpi", 26);
-	obs_data_set_default_int(settings, "qpp", 26);
-	obs_data_set_default_int(settings, "qpb", 26);
-	obs_data_set_default_bool(settings, "use_advanced", false);
+#define PROP_DEF(x, y, z) obs_data_set_default_ ## x(settings, y, z)
+	PROP_DEF(string, MFP_ENCODER_GUID, MF_H264_DEFAULT_GUID);
+	PROP_DEF(int,    MFP_BITRATE,         2500);
+	PROP_DEF(bool,   MFP_USE_LOWLAT,      true);
+	PROP_DEF(int,    MFP_B_FRAMES,        2);
+	PROP_DEF(bool,   MFP_USE_BUF_SIZE,    false);
+	PROP_DEF(int,    MFP_BUF_SIZE,        2500);
+	PROP_DEF(bool,   MFP_USE_MAX_BITRATE, false);
+	PROP_DEF(int,    MFP_MAX_BITRATE,     2500);
+	PROP_DEF(int,    MFP_KEY_INT,         2);
+	PROP_DEF(int,    MFP_RATE_CONTROL,    H264RateControlCBR);
+	PROP_DEF(int,    MFP_PROFILE,         H264ProfileMain);
+	PROP_DEF(int,    MFP_MIN_QP,          1);
+	PROP_DEF(int,    MFP_MAX_QP,          51);
+	PROP_DEF(int,    MFP_QP_I,            26);
+	PROP_DEF(int,    MFP_QP_B,            26);
+	PROP_DEF(int,    MFP_QP_P,            26);
+	PROP_DEF(bool,   MFP_USE_ADVANCED,    false);
+#undef DEF
 }
 
 static void UpdateParams(MFH264_Encoder *enc, obs_data_t *settings)
@@ -245,7 +276,7 @@ static void UpdateParams(MFH264_Encoder *enc, obs_data_t *settings)
 	std::shared_ptr<EncoderDescriptor> ed;
 
 	std::string encoderGuid = obs_data_get_string(settings,
-			"encoder_guid");
+		MFP_ENCODER_GUID);
 	auto encoders = MF::EncoderDescriptor::Enumerate();
 	for (auto e : encoders) {
 		if (!ed) {
@@ -257,35 +288,28 @@ static void UpdateParams(MFH264_Encoder *enc, obs_data_t *settings)
 	}
 	enc->descriptor = ed;
 
-	enc->profile = (H264Profile)obs_data_get_int(settings, "profile");
-
-
-	enc->rateControl = (H264RateControl)obs_data_get_int(settings,
-			"rate_control");
-
-	enc->keyint = (UINT32)obs_data_get_int(settings, "keyint_sec");
-
-	enc->bitrate = (UINT32)obs_data_get_int(settings, "bitrate");
-
-	enc->useBufferSize = obs_data_get_bool(settings, "use_bufsize");
-	enc->bufferSize = (uint32_t)obs_data_get_int(settings, "buffer_size");
-
-	enc->useMaxBitrate = obs_data_get_bool(settings, "use_max_bitrate");
-	enc->maxBitrate = (uint32_t)obs_data_get_int(settings, "max_bitrate");
-
-	enc->minQp = (uint16_t)obs_data_get_int(settings, "min_qp");
-	enc->maxQp = (uint16_t)obs_data_get_int(settings, "max_qp");
-
-	enc->qp.defaultQp = (uint16_t)obs_data_get_int(settings, "qpi");
-	enc->qp.i = (uint16_t)obs_data_get_int(settings, "qpi");
-	enc->qp.p = (uint16_t)obs_data_get_int(settings, "qpp");
-	enc->qp.b = (uint16_t)obs_data_get_int(settings, "qpb");
-
-	enc->lowLatency = obs_data_get_bool(settings, "low_latency");
-	enc->bFrames = (uint32_t)obs_data_get_int(settings, "b_frames");
-
-	enc->advanced = obs_data_get_bool(settings, "use_advanced");
+#define PROP_GET(x, y, z) (z)obs_data_get_ ## x(settings, y)
+	enc->profile       = PROP_GET(int,  MFP_PROFILE,      H264Profile);
+	enc->rateControl   = PROP_GET(int,  MFP_RATE_CONTROL, H264RateControl);
+	enc->keyint        = PROP_GET(int,  MFP_KEY_INT,      uint32_t);
+	enc->bitrate       = PROP_GET(int,  MFP_BITRATE,      uint32_t);
+	enc->useBufferSize = PROP_GET(bool, MFP_USE_BUF_SIZE, bool);
+	enc->bufferSize    = PROP_GET(int,  MFP_BUF_SIZE,     uint32_t);
+	enc->useMaxBitrate = PROP_GET(bool, MFP_USE_MAX_BITRATE, uint32_t);
+	enc->maxBitrate    = PROP_GET(int,  MFP_MAX_BITRATE,  uint32_t);
+	enc->minQp         = PROP_GET(int,  MFP_MIN_QP,       uint16_t);
+	enc->maxQp         = PROP_GET(int,  MFP_MAX_QP,       uint16_t);
+	enc->qp.defaultQp  = PROP_GET(int,  MFP_QP_I,         uint16_t);
+	enc->qp.i          = PROP_GET(int,  MFP_QP_I,         uint16_t);
+	enc->qp.p          = PROP_GET(int,  MFP_QP_P,         uint16_t);
+	enc->qp.b          = PROP_GET(int,  MFP_QP_B,         uint16_t);
+	enc->lowLatency    = PROP_GET(bool, MFP_USE_LOWLAT,   bool);
+	enc->bFrames       = PROP_GET(int,  MFP_B_FRAMES,     uint32_t);
+	enc->advanced      = PROP_GET(bool, MFP_USE_ADVANCED, bool);
+#undef PROP_GET
 }
+
+#undef MFP
 
 static bool ApplyCBR(MFH264_Encoder *enc)
 {
@@ -336,14 +360,15 @@ static bool ApplyCQP(MFH264_Encoder *enc)
 
 static void *MFH264_Create(obs_data_t *settings, obs_encoder_t *encoder)
 {
+	ProfileScope("MFH264_Create");
+
 	std::unique_ptr<MFH264_Encoder> enc(new MFH264_Encoder());
 	enc->encoder = encoder;
 
 	UpdateParams(enc.get(), settings);
 
 	enc->h264Encoder.reset(new H264Encoder(encoder,
-			enc->descriptor->Guid(),
-			enc->descriptor->Async(),
+			enc->descriptor,
 			enc->width,
 			enc->height,
 			enc->framerateNum,

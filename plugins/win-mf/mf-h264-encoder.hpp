@@ -88,8 +88,7 @@ namespace MF {
 	class H264Encoder {
 	public:
 		H264Encoder(const obs_encoder_t *encoder,
-			GUID &guid,
-			bool async,
+			std::shared_ptr<EncoderDescriptor> descriptor,
 			UINT32 width,
 			UINT32 height,
 			UINT32 framerateNum,
@@ -142,8 +141,7 @@ namespace MF {
 		HRESULT DrainEvents();
 	private:
 		const obs_encoder_t *encoder;
-		GUID guid;
-		const bool async;
+		std::shared_ptr<EncoderDescriptor> descriptor;
 		const UINT32 width;
 		const UINT32 height;
 		const UINT32 framerateNum;
