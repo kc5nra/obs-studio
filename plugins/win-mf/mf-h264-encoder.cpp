@@ -41,10 +41,10 @@ static UINT32 MapQpToQuality(H264QP &qp)
 	return 100 - (UINT32)floor(100.0 / 51.0 * qp.defaultQp + 0.5f);
 }
 
-static bool ProcessNV12(std::function<void(size_t height, int plane)> func,
-	uint32_t height)
+static bool ProcessNV12(std::function<void(UINT32 height, INT32 plane)> func,
+	UINT32 height)
 {
-	int plane = 0;
+	INT32 plane = 0;
 
 	func(height, plane++);
 	func(height / 2, plane);
@@ -552,9 +552,9 @@ bool H264Encoder::ProcessInput(UINT8 **data, UINT32 *linesize, UINT64 pts,
 
 		HRC(buffer->Lock(&bufferData, NULL, NULL));
 
-		ProcessNV12([&, this](size_t height, int plane) {
-			HRESULT hr = MFCopyImage(bufferData, width, data[plane],
-				linesize[plane], width, height);
+		ProcessNV12([&, this](DWORD height, int plane) {
+			MFCopyImage(bufferData, width, data[plane],
+					linesize[plane], width, height);
 			bufferData += width * height;
 		}, height);
 	}

@@ -103,19 +103,19 @@ static std::string MBSToString(wchar_t *mbs)
 
 static std::unique_ptr<EncoderDescriptor> CreateDescriptor(ComPtr<IMFActivate> activate)
 {
-	HRESULT hr;
-
 	UINT32 flags;
-	activate->GetUINT32(
-		MF_TRANSFORM_FLAGS_Attribute,
-		&flags);
+	if (FAILED(activate->GetUINT32(MF_TRANSFORM_FLAGS_Attribute, &flags)))
+		return nullptr;
 
 	bool isAsync = !(flags & MFT_ENUM_FLAG_SYNCMFT);
 	isAsync |= !!(flags & MFT_ENUM_FLAG_ASYNCMFT);
 	bool isHardware = !!(flags & MFT_ENUM_FLAG_HARDWARE);
 
 	GUID guid = {0};
-	activate->GetGUID(MFT_TRANSFORM_CLSID_Attribute, &guid);
+
+	if (FAILED(activate->GetGUID(MFT_TRANSFORM_CLSID_Attribute, &guid)))
+		return nullptr;
+
 	ComHeapPtr<WCHAR> guidW;
 	StringFromIID(guid, &guidW);
 	std::string guidString = MBSToString(guidW);
@@ -170,7 +170,9 @@ std::vector<std::shared_ptr<EncoderDescriptor>> EncoderDescriptor::Enumerate()
 	if (SUCCEEDED(hr))
 	{
 		for (decltype(count) i = 0; i < count; i++) {
-			descriptors.emplace_back(std::move(CreateDescriptor(ppActivate[i])));
+			auto p = std::move(CreateDescriptor(ppActivate[i]));
+			if (p)
+				descriptors.emplace_back(std::move(p));
 		}
 	}
 

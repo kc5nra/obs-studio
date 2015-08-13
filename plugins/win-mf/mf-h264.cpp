@@ -36,49 +36,51 @@ struct MFH264_Encoder {
 	const char *profiler_encode = nullptr;
 };
 
-#define TEXT_ENCODER         obs_module_text("Encoder")
-#define TEXT_ADVANCED        obs_module_text("Advanced")
-#define TEXT_LOW_LAT         obs_module_text("LowLatency")
-#define TEXT_B_FRAMES        obs_module_text("BFrames")
-#define TEXT_BITRATE         obs_module_text("Bitrate")
-#define TEXT_CUSTOM_BUF      obs_module_text("CustomBufsize")
-#define TEXT_BUF_SIZE        obs_module_text("BufferSize")
-#define TEXT_USE_MAX_BITRATE obs_module_text("CustomMaxBitrate")
-#define TEXT_MAX_BITRATE     obs_module_text("MaxBitrate")
-#define TEXT_KEYINT_SEC      obs_module_text("KeyframeIntervalSec")
-#define TEXT_RATE_CONTROL    obs_module_text("RateControl")
-#define TEXT_MIN_QP          obs_module_text("MinQP")
-#define TEXT_MAX_QP          obs_module_text("MaxQP")
-#define TEXT_QPI             obs_module_text("QPI")
-#define TEXT_QPP             obs_module_text("QPP")
-#define TEXT_QPB             obs_module_text("QPB")
-#define TEXT_PROFILE         obs_module_text("Profile")
-#define TEXT_CBR             obs_module_text("CBR")
-#define TEXT_VBR             obs_module_text("VBR")
-#define TEXT_CQP             obs_module_text("CQP")
+#define MFTEXT(x) obs_module_text("MF.H264." x)
+#define TEXT_ENCODER_NAME    MFTEXT("MFH264Enc")
+#define TEXT_ENCODER         MFTEXT("Encoder")
+#define TEXT_ADVANCED        MFTEXT("Advanced")
+#define TEXT_LOW_LAT         MFTEXT("LowLatency")
+#define TEXT_B_FRAMES        MFTEXT("BFrames")
+#define TEXT_BITRATE         MFTEXT("Bitrate")
+#define TEXT_CUSTOM_BUF      MFTEXT("CustomBufsize")
+#define TEXT_BUF_SIZE        MFTEXT("BufferSize")
+#define TEXT_USE_MAX_BITRATE MFTEXT("CustomMaxBitrate")
+#define TEXT_MAX_BITRATE     MFTEXT("MaxBitrate")
+#define TEXT_KEYINT_SEC      MFTEXT("KeyframeIntervalSec")
+#define TEXT_RATE_CONTROL    MFTEXT("RateControl")
+#define TEXT_MIN_QP          MFTEXT("MinQP")
+#define TEXT_MAX_QP          MFTEXT("MaxQP")
+#define TEXT_QPI             MFTEXT("QPI")
+#define TEXT_QPP             MFTEXT("QPP")
+#define TEXT_QPB             MFTEXT("QPB")
+#define TEXT_PROFILE         MFTEXT("Profile")
+#define TEXT_CBR             MFTEXT("CBR")
+#define TEXT_VBR             MFTEXT("VBR")
+#define TEXT_CQP             MFTEXT("CQP")
 
 #define MFP(x) "mf_h264_" ## x
-#define MFP_ENCODER_GUID    MFP("encoder_guid")
-#define MFP_USE_ADVANCED    MFP("use_advanced")
-#define MFP_USE_LOWLAT      MFP("use_low_latency")
-#define MFP_B_FRAMES        MFP("b_frames")
-#define MFP_BITRATE         MFP("bitrate")
-#define MFP_USE_BUF_SIZE    MFP("use_buf_size")
-#define MFP_BUF_SIZE        MFP("buf_size")
-#define MFP_USE_MAX_BITRATE MFP("use_max_bitrate")
-#define MFP_MAX_BITRATE     MFP("use_max_bitrate")
-#define MFP_KEY_INT         MFP("key_int")
-#define MFP_RATE_CONTROL    MFP("rate_control")
-#define MFP_MIN_QP          MFP("min_qp")
-#define MFP_MAX_QP          MFP("max_qp")
-#define MFP_QP_I            MFP("qp_i")
-#define MFP_QP_P            MFP("qp_p")
-#define MFP_QP_B            MFP("qp_b")
-#define MFP_PROFILE         MFP("profile")
+#define MFP_ENCODER_GUID     MFP("encoder_guid")
+#define MFP_USE_ADVANCED     MFP("use_advanced")
+#define MFP_USE_LOWLAT       MFP("use_low_latency")
+#define MFP_B_FRAMES         MFP("b_frames")
+#define MFP_BITRATE          MFP("bitrate")
+#define MFP_USE_BUF_SIZE     MFP("use_buf_size")
+#define MFP_BUF_SIZE         MFP("buf_size")
+#define MFP_USE_MAX_BITRATE  MFP("use_max_bitrate")
+#define MFP_MAX_BITRATE      MFP("use_max_bitrate")
+#define MFP_KEY_INT          MFP("key_int")
+#define MFP_RATE_CONTROL     MFP("rate_control")
+#define MFP_MIN_QP           MFP("min_qp")
+#define MFP_MAX_QP           MFP("max_qp")
+#define MFP_QP_I             MFP("qp_i")
+#define MFP_QP_P             MFP("qp_p")
+#define MFP_QP_B             MFP("qp_b")
+#define MFP_PROFILE          MFP("profile")
 
 static const char *MFH264_GetName()
 {
-	return obs_module_text("MFH264Enc");
+	return TEXT_ENCODER_NAME;
 }
 
 static void set_visible(obs_properties_t *ppts, const char *name, bool visible)
@@ -93,6 +95,7 @@ static bool use_bufsize_modified(obs_properties_t *ppts, obs_property_t *p,
 	UNUSED_PARAMETER(p);
 
 	bool use_bufsize = obs_data_get_bool(settings, MFP_USE_BUF_SIZE);
+
 	set_visible(ppts, MFP_BUF_SIZE, use_bufsize);
 
 	return true;
@@ -103,8 +106,9 @@ static bool use_max_bitrate_modified(obs_properties_t *ppts, obs_property_t *p,
 {
 	UNUSED_PARAMETER(p);
 
-	bool advanced = obs_data_get_bool(settings, MFP_USE_ADVANCED);
+	bool advanced        = obs_data_get_bool(settings, MFP_USE_ADVANCED);
 	bool use_max_bitrate = obs_data_get_bool(settings, MFP_USE_MAX_BITRATE);
+
 	set_visible(ppts, MFP_MAX_BITRATE, advanced && use_max_bitrate);
 
 	return true;
@@ -113,11 +117,13 @@ static bool use_max_bitrate_modified(obs_properties_t *ppts, obs_property_t *p,
 static bool use_advanced_modified(obs_properties_t *ppts, obs_property_t *p,
 	obs_data_t *settings)
 {
+	UNUSED_PARAMETER(p);
+
 	bool advanced = obs_data_get_bool(settings, MFP_USE_ADVANCED);
 
 	set_visible(ppts, MFP_MIN_QP,       advanced);
 	set_visible(ppts, MFP_MAX_QP,       advanced);
-	set_visible(ppts, MFP_USE_LOWLAT,  advanced);
+	set_visible(ppts, MFP_USE_LOWLAT,   advanced);
 	set_visible(ppts, MFP_B_FRAMES,     advanced);
 
 	H264RateControl rateControl = (H264RateControl)obs_data_get_int(
@@ -135,6 +141,8 @@ static bool use_advanced_modified(obs_properties_t *ppts, obs_property_t *p,
 static bool rate_control_modified(obs_properties_t *ppts, obs_property_t *p,
 	obs_data_t *settings)
 {
+	UNUSED_PARAMETER(p);
+
 	H264RateControl rateControl = (H264RateControl)obs_data_get_int(
 		settings, MFP_RATE_CONTROL);
 
@@ -187,7 +195,7 @@ static obs_properties_t *MFH264_GetProperties(void *)
 	obs_property_t *p = obs_properties_add_list(props, MFP_ENCODER_GUID,
 			TEXT_ENCODER, OBS_COMBO_TYPE_LIST,
 			OBS_COMBO_FORMAT_STRING);
-	auto encoders = MF::EncoderDescriptor::Enumerate();
+	auto encoders = EncoderDescriptor::Enumerate();
 	for (auto e : encoders) {
 		obs_property_list_add_string(p,
 				obs_module_text(e->Name()),
@@ -245,7 +253,7 @@ static obs_properties_t *MFH264_GetProperties(void *)
 static void MFH264_GetDefaults(obs_data_t *settings)
 {
 #define PROP_DEF(x, y, z) obs_data_set_default_ ## x(settings, y, z)
-	PROP_DEF(string, MFP_ENCODER_GUID, MF_H264_DEFAULT_GUID);
+	PROP_DEF(string, MFP_ENCODER_GUID,    MF_H264_DEFAULT_GUID);
 	PROP_DEF(int,    MFP_BITRATE,         2500);
 	PROP_DEF(bool,   MFP_USE_LOWLAT,      true);
 	PROP_DEF(int,    MFP_B_FRAMES,        2);
@@ -279,7 +287,7 @@ static void UpdateParams(MFH264_Encoder *enc, obs_data_t *settings)
 
 	std::string encoderGuid = obs_data_get_string(settings,
 		MFP_ENCODER_GUID);
-	auto encoders = MF::EncoderDescriptor::Enumerate();
+	auto encoders = EncoderDescriptor::Enumerate();
 	for (auto e : encoders) {
 		if (!ed) {
 			ed = e;
@@ -311,6 +319,7 @@ static void UpdateParams(MFH264_Encoder *enc, obs_data_t *settings)
 #undef PROP_GET
 }
 
+#undef MFTEXT
 #undef MFP
 
 static bool ApplyCBR(MFH264_Encoder *enc)
