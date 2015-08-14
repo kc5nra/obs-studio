@@ -13,8 +13,6 @@ static void DBGMSG(PCWSTR format, ...)
 
 	WCHAR msg[MAX_PATH];
 
-
-
 	if (SUCCEEDED(StringCbVPrintf(msg, sizeof(msg), format, args)))
 	{
 		char *cmsg;

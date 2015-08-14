@@ -76,19 +76,19 @@ struct EncoderEntry {
 } guidNameMap[] = {
 	{
 		"{6CA50344-051A-4DED-9779-A43305165E35}",
-		"EncoderSWMicrosoft"
+		"MF.H264.EncoderSWMicrosoft"
 	},
 	{
 		"{ADC9BC80-0F41-46C6-AB75-D693D793597D}",
-		"EncoderHWAMD"
+		"MF.H264.EncoderHWAMD"
 	},
 	{
 		"{4BE8D3C0-0515-4A37-AD55-E4BAE19AF471}",
-		"EncoderHWIntel"
+		"MF.H264.EncoderHWIntel"
 	},
 	{
 		"{60F44560-5A20-4857-BFEF-D29773CB8040}",
-		"EncoderHWNVIDIA"
+		"MF.H264.EncoderHWNVIDIA"
 	}
 };
 

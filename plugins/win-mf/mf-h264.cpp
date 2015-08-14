@@ -37,7 +37,7 @@ struct MFH264_Encoder {
 };
 
 #define MFTEXT(x) obs_module_text("MF.H264." x)
-#define TEXT_ENCODER_NAME    MFTEXT("MFH264Enc")
+#define TEXT_ENCODER_NAME    MFTEXT("EncoderName")
 #define TEXT_ENCODER         MFTEXT("Encoder")
 #define TEXT_ADVANCED        MFTEXT("Advanced")
 #define TEXT_LOW_LAT         MFTEXT("LowLatency")
@@ -68,7 +68,7 @@ struct MFH264_Encoder {
 #define MFP_USE_BUF_SIZE     MFP("use_buf_size")
 #define MFP_BUF_SIZE         MFP("buf_size")
 #define MFP_USE_MAX_BITRATE  MFP("use_max_bitrate")
-#define MFP_MAX_BITRATE      MFP("use_max_bitrate")
+#define MFP_MAX_BITRATE      MFP("max_bitrate")
 #define MFP_KEY_INT          MFP("key_int")
 #define MFP_RATE_CONTROL     MFP("rate_control")
 #define MFP_MIN_QP           MFP("min_qp")
