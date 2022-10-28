@@ -2,6 +2,8 @@
 
 #if defined(WIN32) || defined(WIN64)
 
+#include <algorithm>
+
 //prefast signature used in combaseapi.h
 #ifndef _PREFAST_
 #pragma warning(disable : 4068)
@@ -145,8 +147,8 @@ mfxStatus CD3D9Device::FillD3DPP(mfxHDL hWindow, mfxU16 nViews,
 		GetClientRect((HWND)hWindow, &r);
 		int x = GetSystemMetrics(SM_CXSCREEN);
 		int y = GetSystemMetrics(SM_CYSCREEN);
-		D3DPP.BackBufferWidth = min(r.right - r.left, x);
-		D3DPP.BackBufferHeight = min(r.bottom - r.top, y);
+		D3DPP.BackBufferWidth = std::min<LONG>(r.right - r.left, x);
+		D3DPP.BackBufferHeight = std::min<LONG>(r.bottom - r.top, y);
 	} else {
 		D3DPP.BackBufferWidth = GetSystemMetrics(SM_CYSCREEN);
 		D3DPP.BackBufferHeight = GetSystemMetrics(SM_CYSCREEN);
@@ -231,8 +233,8 @@ mfxStatus CD3D9Device::Reset()
 		GetClientRect((HWND)m_D3DPP.hDeviceWindow, &r);
 		int x = GetSystemMetrics(SM_CXSCREEN);
 		int y = GetSystemMetrics(SM_CYSCREEN);
-		m_D3DPP.BackBufferWidth = min(r.right - r.left, x);
-		m_D3DPP.BackBufferHeight = min(r.bottom - r.top, y);
+		m_D3DPP.BackBufferWidth = std::min<LONG>(r.right - r.left, x);
+		m_D3DPP.BackBufferHeight = std::min<LONG>(r.bottom - r.top, y);
 	} else {
 		m_D3DPP.BackBufferWidth = GetSystemMetrics(SM_CXSCREEN);
 		m_D3DPP.BackBufferHeight = GetSystemMetrics(SM_CYSCREEN);
