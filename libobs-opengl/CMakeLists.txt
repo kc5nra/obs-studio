@@ -26,7 +26,7 @@ target_sources(
           gl-vertexbuffer.c
           gl-zstencil.c)
 
-target_link_libraries(libobs-opengl PRIVATE OBS::libobs OBS::glad)
+target_link_libraries(libobs-opengl PRIVATE OBS::libobs OBS::glad OBS::tracy_interface)
 
 if(OS_WINDOWS)
   configure_file(cmake/windows/obs-module.rc.in libobs-opengl.rc)

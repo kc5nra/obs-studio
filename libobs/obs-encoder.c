@@ -938,7 +938,7 @@ static inline void send_packet(struct obs_encoder *encoder,
 			       struct encoder_callback *cb,
 			       struct encoder_packet *packet)
 {
-	profile_start(send_packet_name);
+	PROFILE_START_EX(send_packet_name);
 	/* include SEI in first video packet */
 	if (encoder->info.type == OBS_ENCODER_VIDEO && !cb->sent_first_packet)
 		send_first_video_packet(encoder, cb, packet);
@@ -1011,7 +1011,7 @@ void send_off_encoder_packet(obs_encoder_t *encoder, bool success,
 static const char *do_encode_name = "do_encode";
 bool do_encode(struct obs_encoder *encoder, struct encoder_frame *frame)
 {
-	profile_start(do_encode_name);
+	PROFILE_START_EX(do_encode_name);
 	if (!encoder->profile_encoder_encode_name)
 		encoder->profile_encoder_encode_name =
 			profile_store_name(obs_get_profiler_name_store(),
@@ -1031,7 +1031,7 @@ bool do_encode(struct obs_encoder *encoder, struct encoder_frame *frame)
 	pkt.timebase_den = encoder->timebase_den;
 	pkt.encoder = encoder;
 
-	profile_start(encoder->profile_encoder_encode_name);
+	PROFILE_START_EX(encoder->profile_encoder_encode_name);
 	success = encoder->info.encode(encoder->context.data, frame, &pkt,
 				       &received);
 	profile_end(encoder->profile_encoder_encode_name);
@@ -1075,7 +1075,7 @@ bool video_pause_check(struct pause_data *pause, uint64_t timestamp)
 static const char *receive_video_name = "receive_video";
 static void receive_video(void *param, struct video_data *frame)
 {
-	profile_start(receive_video_name);
+	PROFILE_START_EX(receive_video_name);
 
 	struct obs_encoder *encoder = param;
 	struct obs_encoder *pair = encoder->paired_encoder;
@@ -1165,7 +1165,7 @@ static void start_from_buffer(struct obs_encoder *encoder, uint64_t v_start_ts)
 static const char *buffer_audio_name = "buffer_audio";
 static bool buffer_audio(struct obs_encoder *encoder, struct audio_data *data)
 {
-	profile_start(buffer_audio_name);
+	PROFILE_START_EX(buffer_audio_name);
 
 	size_t size = data->frames * encoder->blocksize;
 	size_t offset_size = 0;
@@ -1315,7 +1315,7 @@ bool audio_pause_check(struct pause_data *pause, struct audio_data *data,
 static const char *receive_audio_name = "receive_audio";
 static void receive_audio(void *param, size_t mix_idx, struct audio_data *in)
 {
-	profile_start(receive_audio_name);
+	PROFILE_START_EX(receive_audio_name);
 
 	struct obs_encoder *encoder = param;
 	struct audio_data audio = *in;

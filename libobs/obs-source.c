@@ -2899,10 +2899,19 @@ static const char *get_type_format(enum obs_source_type type)
 
 static inline void render_video(obs_source_t *source)
 {
+	if (!source->profile_source_render_name) {
+		source->profile_source_render_name = profile_store_name(
+			obs_get_profiler_name_store(), "render_video(%s)",
+			obs_source_get_name(source));
+	}
+
+	PROFILE_START_EX(source->profile_source_render_name);
+
 	if (source->info.type != OBS_SOURCE_TYPE_FILTER &&
 	    (source->info.output_flags & OBS_SOURCE_VIDEO) == 0) {
 		if (source->filter_parent)
 			obs_source_skip_video_filter(source);
+		profile_end(source->profile_source_render_name);
 		return;
 	}
 
@@ -2917,6 +2926,7 @@ static inline void render_video(obs_source_t *source)
 	if (!source->context.data || !source->enabled) {
 		if (source->filter_parent)
 			obs_source_skip_video_filter(source);
+		profile_end(source->profile_source_render_name);
 		return;
 	}
 
@@ -2940,6 +2950,7 @@ static inline void render_video(obs_source_t *source)
 		obs_source_render_async_video(source);
 
 	GS_DEBUG_MARKER_END();
+	profile_end(source->profile_source_render_name);
 }
 
 void obs_source_video_render(obs_source_t *source)

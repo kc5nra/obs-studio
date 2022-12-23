@@ -10,6 +10,8 @@
 
 #include <zlib.h>
 
+#include <tracy/TracyC.h>
+
 //#define TRACK_OVERHEAD
 
 struct profiler_snapshot {
@@ -42,6 +44,9 @@ struct profile_call {
 	uint64_t end_time;
 #ifdef TRACK_OVERHEAD
 	uint64_t overhead_end;
+#endif
+#ifdef TRACY_ENABLE
+	TracyCZoneCtx tracy_context;
 #endif
 	uint64_t expected_time_between_calls;
 	DARRAY(profile_call) children;
@@ -268,6 +273,9 @@ void profiler_start(void)
 	pthread_mutex_lock(&root_mutex);
 	enabled = true;
 	pthread_mutex_unlock(&root_mutex);
+#ifdef TRACY_ENABLE
+	___tracy_startup_profiler();
+#endif
 }
 
 void profiler_stop(void)
@@ -275,6 +283,14 @@ void profiler_stop(void)
 	pthread_mutex_lock(&root_mutex);
 	enabled = false;
 	pthread_mutex_unlock(&root_mutex);
+#ifdef TRACY_ENABLE
+	___tracy_shutdown_profiler();
+#endif
+}
+
+void profile_set_thread_name(const char *name)
+{
+	TracyCSetThreadName(name);
 }
 
 void profile_reenable_thread(void)
@@ -365,15 +381,27 @@ static void merge_context(profile_call *context)
 	free_call_context(prev_call);
 }
 
-void profile_start(const char *name)
+void profile_start_with_info(const char *name,
+			     const struct profile_source_location_data *data)
 {
 	if (!thread_enabled)
 		return;
+
+#ifdef TRACY_ENABLE
+	TracyCZoneCtx ctx = ___tracy_emit_zone_begin(
+		(const struct ___tracy_source_location_data *)data, true);
+	TracyCZoneName(ctx, name, strlen(name));
+#else
+	UNUSED_PARAMETER(data);
+#endif
 
 	profile_call new_call = {
 		.name = name,
 #ifdef TRACK_OVERHEAD
 		.overhead_start = os_gettime_ns(),
+#endif
+#ifdef TRACY_ENABLE
+		.tracy_context = ctx,
 #endif
 		.parent = thread_context,
 	};
@@ -390,6 +418,52 @@ void profile_start(const char *name)
 
 	thread_context = call;
 	call->start_time = os_gettime_ns();
+}
+
+#ifdef TRACY_ENABLE
+#define PACK_CONTEXT(ctx) \
+	((uint64_t)ctx.id << 32 | (uint64_t)((uint32_t)ctx.active))
+#define UNPACK_CONTEXT(ctx)                           \
+	((TracyCZoneCtx){.id = (uint32_t)(ctx >> 32), \
+			 .active = (int32_t)(ctx & 0xFFFFFFFF)})
+#endif
+#define NULL_CONTEXT ((uint64_t)0 << 32 | (uint64_t)((uint32_t)-1))
+
+profile_context_t
+profile_start_with_info_light(const char *name,
+			      const struct profile_source_location_data *data)
+{
+	// name must be statically assigned or passed in
+	if (name == NULL && data->name == NULL)
+		return NULL_CONTEXT;
+
+#ifdef TRACY_ENABLE
+	TracyCZoneCtx ctx = ___tracy_emit_zone_begin(
+		(const struct ___tracy_source_location_data *)data, true);
+	if (name) {
+		TracyCZoneName(ctx, name, strlen(name));
+	}
+	return PACK_CONTEXT(ctx);
+#else
+	UNUSED_PARAMETER(data);
+	return NULL;
+#endif
+}
+
+void profile_end_light(profile_context_t context)
+{
+#ifdef TRACY_ENABLE
+	TracyCZoneCtx ctx = UNPACK_CONTEXT(context);
+	if (ctx.active != -1)
+		TracyCZoneEnd(ctx);
+#else
+	UNUSED_PARAMETER(context);
+#endif
+}
+
+void profile_start(const char *name)
+{
+	profile_start_with_info(name, NULL);
 }
 
 void profile_end(const char *name)
@@ -433,10 +507,38 @@ void profile_end(const char *name)
 	call->overhead_end = os_gettime_ns();
 #endif
 
+#ifdef TRACY_ENABLE
+	TracyCZoneEnd(call->tracy_context);
+#endif
+
 	if (call->parent)
 		return;
 
 	merge_context(call);
+}
+
+void profile_plot(const char *name, double value)
+{
+#ifdef TRACY_ENABLE
+	TracyCPlot(name, value);
+#else
+	UNUSED_PARAMETER(name);
+	UNUSED_PARAMETER(value);
+#endif
+}
+
+void profile_mark_render_frame()
+{
+	TracyCFrameMark;
+}
+
+void profile_mark_frame(const char *name)
+{
+#ifdef TRACY_ENABLE
+	TracyCFrameMarkNamed(name);
+#else
+	UNUSED_PARAMETER(name);
+#endif
 }
 
 static int profiler_time_entry_compare(const void *first, const void *second)

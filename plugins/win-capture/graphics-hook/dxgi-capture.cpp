@@ -235,6 +235,8 @@ static HRESULT STDMETHODCALLTYPE hook_present(IDXGISwapChain *swap,
 	--dxgi_presenting;
 	dxgi_present_attempted = true;
 
+	global_hook_info->present_count++;
+
 	if (capture && capture_overlay) {
 		/*
 		 * It seems that the first call to Present after ResizeBuffers
@@ -299,6 +301,8 @@ hook_present1(IDXGISwapChain1 *swap, UINT sync_interval, UINT flags,
 	const HRESULT hr = RealPresent1(swap, sync_interval, flags, params);
 	--dxgi_presenting;
 	dxgi_present_attempted = true;
+
+	global_hook_info->present_count++;
 
 	if (capture && capture_overlay) {
 		if (resize_buffers_called) {

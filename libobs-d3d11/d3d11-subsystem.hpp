@@ -36,6 +36,9 @@
 #include <util/windows/ComPtr.hpp>
 #include <util/windows/HRError.hpp>
 
+#include <tracy/Tracy.hpp>
+#include <tracy/TracyD3D11.hpp>
+
 // #define DISASSEMBLE_SHADERS
 
 struct shader_var;
@@ -996,6 +999,10 @@ struct gs_monitor_color_info {
 	}
 };
 
+struct tracy_deleter {
+	void operator()(TracyD3D11Ctx context) { TracyD3D11Destroy(context); }
+};
+
 struct gs_device {
 	ComPtr<IDXGIFactory1> factory;
 	ComPtr<IDXGIAdapter1> adapter;
@@ -1004,6 +1011,10 @@ struct gs_device {
 	uint32_t adpIdx = 0;
 	bool nv12Supported = false;
 	bool p010Supported = false;
+
+	const std::string contextName;
+	std::unique_ptr<std::remove_pointer_t<TracyD3D11Ctx>, tracy_deleter>
+		tracy_context;
 
 	gs_texture_2d *curRenderTarget = nullptr;
 	gs_zstencil_buffer *curZStencilBuffer = nullptr;
@@ -1082,7 +1093,8 @@ struct gs_device {
 
 	gs_monitor_color_info GetMonitorColorInfo(HMONITOR hMonitor);
 
-	gs_device(uint32_t adapterIdx);
+	gs_device(uint32_t adapterIdx,
+		  const std::string &contextName = "d3d11_context");
 	~gs_device();
 };
 

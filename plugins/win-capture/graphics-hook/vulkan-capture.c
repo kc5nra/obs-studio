@@ -1326,6 +1326,11 @@ static VkResult VKAPI_CALL OBS_QueuePresentKHR(VkQueue queue,
 	vk_presenting++;
 	VkResult res = funcs->QueuePresentKHR(queue, info);
 	vk_presenting--;
+
+	if (vk_presenting == 0) {
+		global_hook_info->present_count++;
+	}
+
 	return res;
 }
 

@@ -48,6 +48,7 @@ bool load_graphics_imports(struct gs_exports *exports, void *module,
 	GRAPHICS_IMPORT(device_preprocessor_name);
 	GRAPHICS_IMPORT(device_create);
 	GRAPHICS_IMPORT(device_destroy);
+	GRAPHICS_IMPORT(device_get_tracy_context);
 	GRAPHICS_IMPORT(device_enter_context);
 	GRAPHICS_IMPORT(device_leave_context);
 	GRAPHICS_IMPORT(device_get_device_obj);

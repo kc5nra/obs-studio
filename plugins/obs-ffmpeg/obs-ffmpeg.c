@@ -281,7 +281,7 @@ static bool nvenc_codec_exists(const char *name, const char *fallback)
 
 static bool nvenc_supported(bool *out_h264, bool *out_hevc, bool *out_av1)
 {
-	profile_start(nvenc_check_name);
+	PROFILE_START_EX(nvenc_check_name);
 
 #if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(58, 9, 100)
 	av_register_all();

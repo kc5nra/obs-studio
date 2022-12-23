@@ -93,19 +93,33 @@ static inline void render_displays(void)
 
 	if (!obs->data.valid)
 		return;
-
 	gs_enter_context(obs->video.graphics);
 
 	/* render extra displays/swaps */
+	PROFILE_START_LIGHT("render_displays_lock", render_displays_lock_ctx);
 	pthread_mutex_lock(&obs->data.displays_mutex);
+	PROFILE_END_LIGHT(render_displays_lock_ctx);
 
 	display = obs->data.first_display;
 	while (display) {
+		uint32_t width, height;
+		obs_display_size(display, &width, &height);
+		if (!display->profile_display_name) {
+			display->profile_display_name = profile_store_name(
+				obs_get_profiler_name_store(),
+				"render_display(%ux%u)", width, height);
+		}
+		PROFILE_START_LIGHT(display->profile_display_name,
+				    render_display_ctx);
 		render_display(display);
+		PROFILE_END_LIGHT(render_display_ctx);
 		display = display->next;
 	}
 
+	PROFILE_START_LIGHT("render_displays_unlock",
+			    render_displays_unlock_ctx);
 	pthread_mutex_unlock(&obs->data.displays_mutex);
+	PROFILE_END_LIGHT(render_displays_unlock_ctx);
 
 	gs_leave_context();
 }
@@ -135,7 +149,7 @@ static inline void render_main_texture(struct obs_core_video_mix *video)
 	uint32_t base_width = video->ovi.base_width;
 	uint32_t base_height = video->ovi.base_height;
 
-	profile_start(render_main_texture_name);
+	PROFILE_START_EX(render_main_texture_name);
 	GS_DEBUG_MARKER_BEGIN(GS_DEBUG_COLOR_MAIN_TEXTURE,
 			      render_main_texture_name);
 
@@ -245,7 +259,7 @@ render_output_texture(struct obs_core_video_mix *mix)
 	if ((width == ovi->base_width) && (height == ovi->base_height))
 		return texture;
 
-	profile_start(render_output_texture_name);
+	PROFILE_START_EX(render_output_texture_name);
 
 	gs_effect_t *effect = get_scale_effect(mix, width, height);
 	gs_technique_t *tech = gs_effect_get_technique(effect, "Draw");
@@ -318,7 +332,7 @@ static void render_convert_texture(struct obs_core_video_mix *video,
 				   gs_texture_t *const *const convert_textures,
 				   gs_texture_t *texture)
 {
-	profile_start(render_convert_texture_name);
+	PROFILE_START_EX(render_convert_texture_name);
 
 	gs_effect_t *effect = obs->video.conversion_effect;
 	gs_eparam_t *color_vec0 =
@@ -403,7 +417,7 @@ stage_output_texture(struct obs_core_video_mix *video, int cur_texture,
 		     gs_stagesurf_t *const *const copy_surfaces,
 		     size_t channel_count)
 {
-	profile_start(stage_output_texture_name);
+	PROFILE_START_EX(stage_output_texture_name);
 
 	unmap_last_surface(video);
 
@@ -509,7 +523,7 @@ static const char *output_gpu_encoders_name = "output_gpu_encoders";
 static void output_gpu_encoders(struct obs_core_video_mix *video,
 				bool raw_active)
 {
-	profile_start(output_gpu_encoders_name);
+	PROFILE_START_EX(output_gpu_encoders_name);
 
 	if (!video->texture_converted)
 		goto end;
@@ -839,6 +853,8 @@ static inline void output_video_data(struct obs_core_video_mix *video,
 static inline void video_sleep(struct obs_core_video *video, uint64_t *p_time,
 			       uint64_t interval_ns)
 {
+	PROFILE_START_LIGHT_STATIC("video_sleep", video_sleep_ctx);
+
 	struct obs_vframe_info vframe_info;
 	uint64_t cur_time = *p_time;
 	uint64_t t = cur_time + interval_ns;
@@ -878,6 +894,8 @@ static inline void video_sleep(struct obs_core_video *video, uint64_t *p_time,
 					    &vframe_info, sizeof(vframe_info));
 	}
 	pthread_mutex_unlock(&obs->video.mixes_mutex);
+
+	PROFILE_END_LIGHT(video_sleep_ctx);
 }
 
 static const char *output_frame_gs_context_name = "gs_context(video->graphics)";
@@ -898,10 +916,11 @@ static inline void output_frame(struct obs_core_video_mix *video)
 
 	memset(&frame, 0, sizeof(struct video_data));
 
-	profile_start(output_frame_gs_context_name);
+	PROFILE_START_EX(output_frame_gs_context_name);
 	gs_enter_context(obs->video.graphics);
+	profile_mark_render_frame();
 
-	profile_start(output_frame_render_video_name);
+	PROFILE_START_EX(output_frame_render_video_name);
 	GS_DEBUG_MARKER_BEGIN(GS_DEBUG_COLOR_RENDER_VIDEO,
 			      output_frame_render_video_name);
 	render_video(video, raw_active, gpu_active, cur_texture);
@@ -909,12 +928,12 @@ static inline void output_frame(struct obs_core_video_mix *video)
 	profile_end(output_frame_render_video_name);
 
 	if (raw_active) {
-		profile_start(output_frame_download_frame_name);
+		PROFILE_START_EX(output_frame_download_frame_name);
 		frame_ready = download_frame(video, prev_texture, &frame);
 		profile_end(output_frame_download_frame_name);
 	}
 
-	profile_start(output_frame_gs_flush_name);
+	PROFILE_START_EX(output_frame_gs_flush_name);
 	gs_flush();
 	profile_end(output_frame_gs_flush_name);
 
@@ -927,7 +946,7 @@ static inline void output_frame(struct obs_core_video_mix *video)
 				    sizeof(vframe_info));
 
 		frame.timestamp = vframe_info.timestamp;
-		profile_start(output_frame_output_video_data_name);
+		PROFILE_START_EX(output_frame_output_video_data_name);
 		output_video_data(video, &frame, vframe_info.count);
 		profile_end(output_frame_output_video_data_name);
 	}
@@ -1134,18 +1153,21 @@ static inline bool stop_requested(void)
 
 bool obs_graphics_thread_loop(struct obs_graphics_context *context)
 {
+	PROFILE_START_LIGHT_STATIC("obs_graphics_thread_loop",
+				   obs_graphics_thread_loop_ctx);
+
 	uint64_t frame_start = os_gettime_ns();
 	uint64_t frame_time_ns;
 
 	update_active_states();
 
-	profile_start(context->video_thread_name);
+	PROFILE_START_EX(context->video_thread_name);
 
 	gs_enter_context(obs->video.graphics);
 	gs_begin_frame();
 	gs_leave_context();
 
-	profile_start(tick_sources_name);
+	PROFILE_START_EX(tick_sources_name);
 	context->last_time =
 		tick_sources(obs->video.video_time, context->last_time);
 	profile_end(tick_sources_name);
@@ -1158,11 +1180,11 @@ bool obs_graphics_thread_loop(struct obs_graphics_context *context)
 	}
 #endif
 
-	profile_start(output_frame_name);
+	PROFILE_START_EX(output_frame_name);
 	output_frames();
 	profile_end(output_frame_name);
 
-	profile_start(render_displays_name);
+	PROFILE_START_EX(render_displays_name);
 	render_displays();
 	profile_end(render_displays_name);
 
@@ -1192,6 +1214,8 @@ bool obs_graphics_thread_loop(struct obs_graphics_context *context)
 		context->fps_total_ns = 0;
 		context->fps_total_frames = 0;
 	}
+
+	PROFILE_END_LIGHT(obs_graphics_thread_loop_ctx);
 
 	return !stop_requested();
 }

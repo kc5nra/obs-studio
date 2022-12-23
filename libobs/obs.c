@@ -1322,7 +1322,7 @@ bool obs_startup(const char *locale, const char *module_config_path,
 {
 	bool success;
 
-	profile_start(obs_startup_name);
+	PROFILE_START_EX(obs_startup_name);
 
 	if (obs) {
 		blog(LOG_WARNING, "Tried to call obs_startup more than once");

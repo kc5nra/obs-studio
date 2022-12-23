@@ -340,14 +340,20 @@ static void gl_wayland_egl_device_load_swapchain(gs_device_t *device,
 
 static void gl_wayland_egl_device_present(gs_device_t *device)
 {
+	PROFILE_START_LIGHT_STATIC("gl_wayland_egl_device_present",
+				   present_ctx);
+
 	struct gl_platform *plat = device->plat;
 	struct gl_windowinfo *wi = device->cur_swap->wi;
+
 	if (eglSwapInterval(plat->display, 0) == EGL_FALSE) {
 		blog(LOG_ERROR, "eglSwapInterval failed");
 	}
 	if (eglSwapBuffers(plat->display, wi->egl_surface) == EGL_FALSE) {
 		blog(LOG_ERROR, "eglSwapBuffers failed");
 	}
+
+	PROFILE_END_LIGHT(present_ctx);
 }
 
 static struct gs_texture *gl_wayland_egl_device_texture_create_from_dmabuf(

@@ -42,7 +42,8 @@ target_sources(
           ../../libobs/util/windows/obfuscate.h
           ${CMAKE_BINARY_DIR}/config/compat-config.h)
 
-target_link_libraries(win-capture PRIVATE OBS::libobs OBS::ipc-util OBS::file-updater Jansson::Jansson)
+target_link_libraries(win-capture PRIVATE OBS::libobs OBS::ipc-util OBS::file-updater Jansson::Jansson
+                                          OBS::tracy_interface)
 
 set_target_properties(win-capture PROPERTIES FOLDER "plugins/win-capture")
 

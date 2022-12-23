@@ -582,6 +582,12 @@ void gs_device::InitDevice(uint32_t adapterIdx)
 	if (FAILED(hr))
 		throw UnsupportedHWError("Failed to create device", hr);
 
+	// TracyD3D11Context macro includes a semicolon
+	auto tracy_context_ = TracyD3D11Context(device.Get(), context.Get());
+	tracy_context.reset(tracy_context_);
+	TracyD3D11ContextName(tracy_context.get(), contextName.c_str(),
+			      static_cast<uint16_t>(contextName.length()));
+
 	blog(LOG_INFO, "D3D11 loaded successfully, feature level used: %x",
 	     (unsigned int)levelUsed);
 
@@ -864,8 +870,9 @@ void gs_device::FlushOutputViews()
 	}
 }
 
-gs_device::gs_device(uint32_t adapterIdx)
-	: curToplogy(D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED)
+gs_device::gs_device(uint32_t adapterIdx, const std::string &contextName)
+	: curToplogy(D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED),
+	  contextName(contextName)
 {
 	matrix4_identity(&curProjMatrix);
 	matrix4_identity(&curViewMatrix);
@@ -1424,6 +1431,11 @@ int device_create(gs_device_t **p_device, uint32_t adapter)
 void device_destroy(gs_device_t *device)
 {
 	delete device;
+}
+
+void *device_get_tracy_context(gs_device_t *device)
+{
+	return (void *)device->tracy_context.get();
 }
 
 void device_enter_context(gs_device_t *device)

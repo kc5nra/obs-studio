@@ -3,6 +3,7 @@
 #include <obs-hotkey.h>
 #include <util/dstr.h>
 #include <util/platform.h>
+#include <util/profiler.h>
 #include <util/threading.h>
 #include <util/windows/window-helpers.h>
 #include <windows.h>
@@ -159,7 +160,12 @@ struct game_capture {
 	bool convert_16bit;
 	bool is_app;
 	bool cursor_hidden;
-
+	uint64_t game_capture_ticks;
+	uint64_t last_tick_time_ns;
+	double game_capture_tick_per_second;
+	double game_presents_per_second;
+	const char *game_capture_source_name;
+	const char *game_capture_profile_name;
 	struct game_capture_config config;
 
 	ipc_pipe_server_t pipe;
@@ -580,6 +586,12 @@ static void *game_capture_create(obs_data_t *settings, obs_source_t *source)
 	gc->hotkey_pair = obs_hotkey_pair_register_source(
 		gc->source, HOTKEY_START, TEXT_HOTKEY_START, HOTKEY_STOP,
 		TEXT_HOTKEY_STOP, hotkey_start, hotkey_stop, gc, gc);
+
+	// Assume sane default that game/capture is ~60fps
+	gc->game_capture_ticks = 0;
+	gc->last_tick_time_ns = 0;
+	gc->game_capture_tick_per_second = 60.0f;
+	gc->game_presents_per_second = 60.0f;
 
 	const HMODULE hModuleUser32 = GetModuleHandle(L"User32.dll");
 	if (hModuleUser32) {
@@ -1772,6 +1784,17 @@ static void check_foreground_window(struct game_capture *gc, float seconds)
 static void game_capture_tick(void *data, float seconds)
 {
 	struct game_capture *gc = data;
+
+	const char *source_name = obs_source_get_name(gc->source);
+	if (source_name != gc->game_capture_source_name) {
+		gc->game_capture_source_name = source_name;
+		gc->game_capture_profile_name = profile_store_name(
+			obs_get_profiler_name_store(), "game_capture_tick(%s)",
+			obs_source_get_name(gc->source));
+	}
+
+	PROFILE_START_LIGHT(gc->game_capture_profile_name, tick_ctx);
+
 	bool deactivate = os_atomic_set_bool(&gc->deactivate_hook, false);
 	bool activate_now = os_atomic_set_bool(&gc->activate_hook_now, false);
 
@@ -1804,6 +1827,7 @@ static void game_capture_tick(void *data, float seconds)
 				stop_capture(gc);
 			gc->showing = false;
 		}
+		profile_end(gc->game_capture_profile_name);
 		return;
 
 	} else if (!gc->showing) {
@@ -1909,11 +1933,46 @@ static void game_capture_tick(void *data, float seconds)
 				reset_frame_interval(gc);
 				gc->fps_reset_time = 0.0f;
 			}
+
+			uint64_t current_time_ns = os_gettime_ns();
+			if (gc->last_tick_time_ns == 0) {
+				gc->last_tick_time_ns = current_time_ns;
+			}
+
+			gc->game_capture_ticks++;
+
+#define NSEC_PER_SEC 1000000000ULL
+			static const uint64_t PERIOD_NS = NSEC_PER_SEC / 4;
+
+			const uint64_t delta =
+				current_time_ns - gc->last_tick_time_ns;
+
+			if (delta > PERIOD_NS) {
+				const double decay = 0.5;
+				gc->game_capture_tick_per_second =
+					gc->game_capture_ticks *
+					((double)NSEC_PER_SEC / (double)delta);
+				gc->game_capture_ticks = 0;
+
+				gc->game_presents_per_second =
+					gc->global_hook_info->present_count *
+					((double)NSEC_PER_SEC / (double)delta);
+				gc->global_hook_info->present_count = 0;
+
+				gc->last_tick_time_ns = current_time_ns;
+
+				profile_plot("game_capture_ticks_per_second",
+					     gc->game_capture_tick_per_second);
+				profile_plot("game_presents_per_second",
+					     gc->game_presents_per_second);
+			}
 		}
 	}
 
 	if (!gc->showing)
 		gc->showing = true;
+
+	PROFILE_END_LIGHT(tick_ctx);
 }
 
 static inline void game_capture_render_cursor(struct game_capture *gc)

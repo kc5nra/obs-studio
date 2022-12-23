@@ -10,6 +10,7 @@ extern "C" {
 typedef struct profiler_snapshot profiler_snapshot_t;
 typedef struct profiler_snapshot_entry profiler_snapshot_entry_t;
 typedef struct profiler_time_entry profiler_time_entry_t;
+typedef uint64_t profile_context_t;
 
 /* ------------------------------------------------------------------------- */
 /* Profiling */
@@ -17,10 +18,63 @@ typedef struct profiler_time_entry profiler_time_entry_t;
 EXPORT void profile_register_root(const char *name,
 				  uint64_t expected_time_between_calls);
 
+struct profile_source_location_data {
+	const char *name;
+	const char *function;
+	const char *file;
+	uint32_t line;
+	uint32_t _color; //unused
+};
+
+// Make sure preprocessor things like __LINE__, etc. resolve
+#ifndef OBS_PROFILE_CONCAT_I
+#define OBS_PROFILE_CONCAT_I(x, y) x##y
+#endif
+#ifndef OBS_PROFILE_CONCAT
+#define OBS_PROFILE_CONCAT(x, y) OBS_PROFILE_CONCAT_I(x, y)
+#endif
+
+#define PROFILE_LOCATION_NAME \
+	OBS_PROFILE_CONCAT(__profile_source_location, __LINE__)
+
+#define PROFILE_LOCATION(name)                                     \
+	static const struct profile_source_location_data           \
+		PROFILE_LOCATION_NAME = {name, __func__, __FILE__, \
+					 (uint32_t)__LINE__, 0}
+
+#define PROFILE_START_EX(name)  \
+	PROFILE_LOCATION(NULL); \
+	profile_start_with_info(name, &PROFILE_LOCATION_NAME)
+
+#define PROFILE_START_LIGHT(name, ctx) \
+	PROFILE_LOCATION(NULL);        \
+	profile_context_t ctx =        \
+		profile_start_with_info_light(name, &PROFILE_LOCATION_NAME)
+
+#define PROFILE_START_LIGHT_STATIC(name, ctx) \
+	PROFILE_LOCATION(name);               \
+	profile_context_t ctx =               \
+		profile_start_with_info_light(NULL, &PROFILE_LOCATION_NAME)
+
+// This is just for symmetry
+#define PROFILE_END_LIGHT(ctx) profile_end_light(ctx)
+
+EXPORT void
+profile_start_with_info(const char *name,
+			const struct profile_source_location_data *data);
+EXPORT profile_context_t profile_start_with_info_light(
+	const char *name, const struct profile_source_location_data *data);
+EXPORT void profile_end_light(profile_context_t context);
+
 EXPORT void profile_start(const char *name);
 EXPORT void profile_end(const char *name);
 
+EXPORT void profile_set_thread_name(const char *name);
 EXPORT void profile_reenable_thread(void);
+
+EXPORT void profile_plot(const char *name, double value);
+EXPORT void profile_mark_render_frame();
+EXPORT void profile_mark_frame(const char *name);
 
 /* ------------------------------------------------------------------------- */
 /* Profiler control */

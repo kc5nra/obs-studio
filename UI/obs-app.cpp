@@ -2317,7 +2317,7 @@ static int run_program(fstream &logFile, int argc, char *argv[])
 	profiler_start();
 	profile_register_root(run_program_init, 0);
 
-	ScopeProfiler prof{run_program_init};
+	ProfileScopeNamed(run_program_init, prof);
 
 #if (QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)) && \
 	(QT_VERSION < QT_VERSION_CHECK(6, 0, 0))

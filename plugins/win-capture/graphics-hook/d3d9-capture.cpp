@@ -622,6 +622,7 @@ static inline void present_end(IDirect3DDevice9 *device,
 	present_recurse--;
 
 	if (!present_recurse) {
+		global_hook_info->present_count++;
 		if (global_hook_info->capture_overlay) {
 			if (!present_recurse)
 				d3d9_capture(device, backbuffer);

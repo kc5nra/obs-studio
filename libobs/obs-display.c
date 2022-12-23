@@ -233,7 +233,10 @@ static inline bool render_display_begin(struct obs_display *display,
 
 static inline void render_display_end()
 {
+	PROFILE_START_LIGHT_STATIC("render_display_end",
+				   render_display_end_ctx);
 	gs_end_scene();
+	PROFILE_END_LIGHT(render_display_end_ctx);
 }
 
 void render_display(struct obs_display *display)
@@ -258,10 +261,16 @@ void render_display(struct obs_display *display)
 
 	/* -------------------------------------------- */
 
+	PROFILE_START_LIGHT_STATIC("render_display_begin",
+				   render_display_begin_ctx);
+
 	if (render_display_begin(display, cx, cy, update_color_space)) {
 		GS_DEBUG_MARKER_BEGIN(GS_DEBUG_COLOR_DISPLAY, "obs_display");
 
+		PROFILE_START_LIGHT_STATIC("render_display_lock",
+					   render_display_lock_ctx);
 		pthread_mutex_lock(&display->draw_callbacks_mutex);
+		PROFILE_END_LIGHT(render_display_lock_ctx);
 
 		for (size_t i = 0; i < display->draw_callbacks.num; i++) {
 			struct draw_callback *callback;
@@ -270,7 +279,10 @@ void render_display(struct obs_display *display)
 			callback->draw(callback->param, cx, cy);
 		}
 
+		PROFILE_START_LIGHT_STATIC("render_display_unlock",
+					   render_display_unlock_ctx);
 		pthread_mutex_unlock(&display->draw_callbacks_mutex);
+		PROFILE_END_LIGHT(render_display_unlock_ctx);
 
 		render_display_end();
 
@@ -278,6 +290,8 @@ void render_display(struct obs_display *display)
 
 		gs_present();
 	}
+
+	PROFILE_END_LIGHT(render_display_begin_ctx);
 }
 
 void obs_display_set_enabled(obs_display_t *display, bool enable)

@@ -275,24 +275,43 @@ bool device_is_present_ready(gs_device_t *device __unused)
 
 void device_present(gs_device_t *device)
 {
-    glFlush();
-    [NSOpenGLContext clearCurrentContext];
+	PROFILE_START_LIGHT_STATIC("gl_cocoa_device_present", present_ctx);
 
-    CGLLockContext([device->cur_swap->wi->context CGLContextObj]);
+	glFlush();
+	[NSOpenGLContext clearCurrentContext];
 
-    [device->cur_swap->wi->context makeCurrentContext];
-    gl_bind_framebuffer(GL_READ_FRAMEBUFFER, device->cur_swap->wi->fbo);
-    gl_bind_framebuffer(GL_DRAW_FRAMEBUFFER, 0);
-    const uint32_t width = device->cur_swap->info.cx;
-    const uint32_t height = device->cur_swap->info.cy;
-    glBlitFramebuffer(0, 0, width, height, 0, height, width, 0, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-    [device->cur_swap->wi->context flushBuffer];
-    glFlush();
-    [NSOpenGLContext clearCurrentContext];
+	PROFILE_START_LIGHT_STATIC("lock_context", lock_context_ctx);
+	CGLLockContext([device->cur_swap->wi->context CGLContextObj]);
+	PROFILE_END_LIGHT(lock_context_ctx);
+
+	PROFILE_START_LIGHT_STATIC("make_current", make_current_ctx);
+	[device->cur_swap->wi->context makeCurrentContext];
+	PROFILE_END_LIGHT(make_current_ctx);
+
+	gl_bind_framebuffer(GL_READ_FRAMEBUFFER, device->cur_swap->wi->fbo);
+	gl_bind_framebuffer(GL_DRAW_FRAMEBUFFER, 0);
+	const uint32_t width = device->cur_swap->info.cx;
+	const uint32_t height = device->cur_swap->info.cy;
+	PROFILE_START_LIGHT_STATIC("blit_framebuffer", blit_framebuffer_ctx);
+	glBlitFramebuffer(0, 0, width, height, 0, height, width, 0,
+			  GL_COLOR_BUFFER_BIT, GL_NEAREST);
+	PROFILE_END_LIGHT(blit_framebuffer_ctx);
+
+	PROFILE_START_LIGHT_STATIC("context_flush_buffer",
+				   context_flush_buffer_ctx);
+	[device->cur_swap->wi->context flushBuffer];
+	PROFILE_END_LIGHT(context_flush_buffer_ctx);
+
+	PROFILE_START_LIGHT_STATIC("gl_flush", gl_flush_ctx);
+	glFlush();
+	PROFILE_END_LIGHT(gl_flush_ctx);
+	[NSOpenGLContext clearCurrentContext];
 
     CGLUnlockContext([device->cur_swap->wi->context CGLContextObj]);
 
-    [device->plat->context makeCurrentContext];
+	[device->plat->context makeCurrentContext];
+
+	PROFILE_END_LIGHT(present_ctx);
 }
 
 bool device_is_monitor_hdr(gs_device_t *device __unused, void *monitor __unused)

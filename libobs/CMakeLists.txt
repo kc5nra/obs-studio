@@ -24,6 +24,7 @@ endif()
 find_package(jansson REQUIRED)
 add_subdirectory("${CMAKE_SOURCE_DIR}/deps/libcaption" "${CMAKE_BINARY_DIR}/deps/libcaption")
 add_subdirectory("${CMAKE_SOURCE_DIR}/deps/uthash" "${CMAKE_BINARY_DIR}/deps/uthash")
+add_subdirectory("${CMAKE_SOURCE_DIR}/deps/tracy" "${CMAKE_BINARY_DIR}/deps/tracy")
 
 target_sources(
   libobs
@@ -242,6 +243,7 @@ target_link_libraries(
           FFmpeg::swresample
           jansson::jansson
           ZLIB::ZLIB
+          OBS::tracy
   PUBLIC Threads::Threads)
 
 if(OS_WINDOWS)

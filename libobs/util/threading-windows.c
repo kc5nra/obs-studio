@@ -17,6 +17,7 @@
 #include "bmem.h"
 #include "threading.h"
 #include "util/platform.h"
+#include "util/profiler.h"
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -168,6 +169,7 @@ struct vs_threadname_info {
 
 void os_set_thread_name(const char *name)
 {
+	profile_set_thread_name(name);
 #ifdef __MINGW32__
 	UNUSED_PARAMETER(name);
 #else

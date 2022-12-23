@@ -182,7 +182,7 @@ static void *video_thread(void *param)
 		if (video->stop)
 			break;
 
-		profile_start(video_thread_name);
+		PROFILE_START_EX(video_thread_name);
 		while (!video->stop && !video_output_cur_frame(video)) {
 			os_atomic_inc_long(&video->total_frames);
 		}

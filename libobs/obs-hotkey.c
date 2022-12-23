@@ -1253,7 +1253,7 @@ void *obs_hotkey_thread(void *arg)
 		if (!lock())
 			continue;
 
-		profile_start(hotkey_thread_name);
+		PROFILE_START_EX(hotkey_thread_name);
 		query_hotkeys();
 		profile_end(hotkey_thread_name);
 

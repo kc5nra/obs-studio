@@ -118,7 +118,9 @@ struct hook_info {
 	/* hook addresses */
 	struct graphics_offsets offsets;
 
-	uint32_t reserved[126];
+	volatile uint64_t present_count;
+
+	uint32_t reserved[124];
 };
 static_assert(sizeof(struct hook_info) == 648, "ABI compatibility");
 

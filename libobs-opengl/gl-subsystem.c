@@ -304,6 +304,13 @@ void device_destroy(gs_device_t *device)
 	}
 }
 
+void *device_get_tracy_context(gs_device_t *device)
+{
+	//TODO: Implement opengl tracy context wrapping
+	UNUSED_PARAMETER(device);
+	return NULL;
+}
+
 gs_swapchain_t *device_swapchain_create(gs_device_t *device,
 					const struct gs_init_data *info)
 {

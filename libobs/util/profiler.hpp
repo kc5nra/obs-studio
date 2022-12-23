@@ -6,7 +6,12 @@ struct ScopeProfiler {
 	const char *name;
 	bool enabled = true;
 
-	ScopeProfiler(const char *name) : name(name) { profile_start(name); }
+	ScopeProfiler(const char *name,
+		      const struct profile_source_location_data *data = NULL)
+		: name(name)
+	{
+		profile_start_with_info(name, data);
+	}
 
 	~ScopeProfiler() { Stop(); }
 
@@ -32,16 +37,20 @@ struct ScopeProfiler {
 
 #ifndef NO_PROFILER_MACROS
 
-#define ScopeProfiler_NameConcatImpl(x, y) x##y
-#define ScopeProfiler_NameConcat(x, y) ScopeProfiler_NameConcatImpl(x, y)
+#define ProfileScope_Name(x) OBS_PROFILE_CONCAT(x, __LINE__)
 
-#ifdef __COUNTER__
-#define ScopeProfiler_Name(x) ScopeProfiler_NameConcat(x, __COUNTER__)
-#else
-#define ScopeProfiler_Name(x) ScopeProfiler_NameConcat(x, __LINE__)
-#endif
+#define ProfileScope(name)                             \
+	PROFILE_LOCATION(NULL);                        \
+	ScopeProfiler ProfileScope_Name(ScopeProfiler) \
+	{                                              \
+		name, &PROFILE_LOCATION_NAME           \
+	}
 
-#define ProfileScope(x) \
-	ScopeProfiler ScopeProfiler_Name(SCOPE_PROFILE) { x }
+#define ProfileScopeNamed(name, var)         \
+	PROFILE_LOCATION(NULL);              \
+	ScopeProfiler var                    \
+	{                                    \
+		name, &PROFILE_LOCATION_NAME \
+	}
 
 #endif

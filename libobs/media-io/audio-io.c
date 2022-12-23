@@ -235,7 +235,7 @@ static void *audio_thread(void *param)
 
 		os_sleepto_ns_fast(audio_time);
 
-		profile_start(audio_thread_name);
+		PROFILE_START_EX(audio_thread_name);
 
 		input_and_output(audio, audio_time, prev_time);
 		prev_time = audio_time;

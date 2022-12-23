@@ -488,6 +488,12 @@ try {
 	if (FAILED(hr))
 		throw HRError("Failed to create device", hr);
 
+	// TracyD3D11Context macro includes a semicolon
+	auto tracy_context_ = TracyD3D11Context(device.Get(), context.Get());
+	tracy_context.reset(tracy_context_);
+	TracyD3D11ContextName(tracy_context.get(), contextName.c_str(),
+			      static_cast<uint16_t>(contextName.length()));
+
 	dev = device;
 
 	obj = first_obj;

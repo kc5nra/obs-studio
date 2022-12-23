@@ -780,8 +780,10 @@ static inline void gl_swap_end(HDC hdc)
 	--swap_recurse;
 	const bool first = swap_recurse == 0;
 
-	if (first && global_hook_info->capture_overlay)
+	if (first && global_hook_info->capture_overlay) {
+		global_hook_info->present_count++;
 		gl_capture(hdc);
+	}
 }
 
 static BOOL WINAPI hook_swap_buffers(HDC hdc)

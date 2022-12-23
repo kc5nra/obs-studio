@@ -528,6 +528,7 @@ EXPORT int gs_get_device_type(void);
 EXPORT void gs_enum_adapters(bool (*callback)(void *param, const char *name,
 					      uint32_t id),
 			     void *param);
+EXPORT void *gs_get_tracy_context(void);
 
 EXPORT int gs_create(graphics_t **graphics, const char *module,
 		     uint32_t adapter);

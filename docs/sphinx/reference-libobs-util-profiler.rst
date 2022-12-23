@@ -84,6 +84,32 @@ Profiling Functions
 
 ----------------------
 
+.. function:: void profile_start_with_info(const char *name, const struct profile_source_location_data *data)
+
+   Starts a profile node.  This profile node will be a child of the last
+   node that was started.
+
+   :param name: Name of the profile node
+   :param data: Source location information
+
+----------------------
+
+.. function:: profile_context_t profile_start_with_info_light(const char *name, const struct profile_source_location_data *data)
+
+   Starts a light-weight profile that only emits to tracy.
+
+   :param name: Name of the profile node
+   :param data: Source location information
+   :return: Context used with :c:func:`profile_end_light()`
+
+----------------------
+
+.. function:: void profile_end_light(profile_context_t context)
+
+   :param context: Context returned from :c:func:`profile_start_with_info_light()`
+
+----------------------
+
 .. function:: void profile_end(const char *name)
 
    :param name: Name of the profile node

@@ -17,6 +17,8 @@
 
 #include "obs-internal.h"
 
+static const char *gpu_encode_loop_name = "gpu_encode_loop_name";
+
 static void *gpu_encode_thread(struct obs_core_video_mix *video)
 {
 	uint64_t interval = video_output_get_frame_time(video->video);
@@ -26,7 +28,6 @@ static void *gpu_encode_thread(struct obs_core_video_mix *video)
 	da_init(encoders);
 
 	os_set_thread_name("obs gpu encode thread");
-
 	while (os_sem_wait(video->gpu_encode_semaphore) == 0) {
 		struct obs_tex_frame tf;
 		uint64_t timestamp;
@@ -66,6 +67,7 @@ static void *gpu_encode_thread(struct obs_core_video_mix *video)
 
 		/* -------------- */
 
+		PROFILE_START_EX(gpu_encode_loop_name);
 		for (size_t i = 0; i < encoders.num; i++) {
 			struct encoder_packet pkt = {0};
 			bool received = false;
@@ -102,17 +104,25 @@ static void *gpu_encode_thread(struct obs_core_video_mix *video)
 			else
 				next_key++;
 
+			if (!encoder->profile_encoder_encode_name)
+				encoder->profile_encoder_encode_name =
+					profile_store_name(
+						obs_get_profiler_name_store(),
+						"gpu_encode(%s)",
+						encoder->context.name);
+			PROFILE_START_EX(encoder->profile_encoder_encode_name);
 			success = encoder->info.encode_texture(
 				encoder->context.data, tf.handle,
 				encoder->cur_pts, lock_key, &next_key, &pkt,
 				&received);
 			send_off_encoder_packet(encoder, success, received,
 						&pkt);
-
+			profile_end(encoder->profile_encoder_encode_name);
 			lock_key = next_key;
 
 			encoder->cur_pts += encoder->timebase_num;
 		}
+		profile_end(gpu_encode_loop_name);
 
 		/* -------------- */
 

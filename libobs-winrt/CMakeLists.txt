@@ -18,7 +18,7 @@ target_precompile_headers(
   <winrt/Windows.Graphics.Capture.h>
   <winrt/Windows.System.h>)
 
-target_link_libraries(libobs-winrt PRIVATE OBS::libobs Dwmapi windowsapp)
+target_link_libraries(libobs-winrt PRIVATE OBS::libobs OBS::tracy_interface Dwmapi windowsapp)
 
 target_compile_features(libobs-winrt PRIVATE cxx_std_17)
 

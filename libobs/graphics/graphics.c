@@ -20,6 +20,7 @@
 #include "../util/base.h"
 #include "../util/bmem.h"
 #include "../util/platform.h"
+#include "../util/profiler.h"
 #include "graphics-internal.h"
 #include "vec2.h"
 #include "vec3.h"
@@ -262,8 +263,12 @@ void gs_destroy(graphics_t *graphics)
 
 void gs_enter_context(graphics_t *graphics)
 {
-	if (!ptr_valid(graphics, "gs_enter_context"))
+	PROFILE_START_LIGHT_STATIC("gs_enter_context", gs_enter_context_ctx);
+
+	if (!ptr_valid(graphics, "gs_enter_context")) {
+		PROFILE_END_LIGHT(gs_enter_context_ctx);
 		return;
+	}
 
 	bool is_current = thread_graphics == graphics;
 	if (thread_graphics && !is_current) {
@@ -278,6 +283,8 @@ void gs_enter_context(graphics_t *graphics)
 	}
 
 	os_atomic_inc_long(&graphics->ref);
+
+	PROFILE_END_LIGHT(gs_enter_context_ctx);
 }
 
 void gs_leave_context(void)
@@ -320,6 +327,17 @@ int gs_get_device_type(void)
 	return gs_valid("gs_get_device_type")
 		       ? thread_graphics->exports.device_get_type()
 		       : -1;
+}
+
+void *gs_get_tracy_context(void)
+{
+	if (!gs_valid("gs_get_tracy_context")) {
+		return NULL;
+	}
+
+	graphics_t *graphics = thread_graphics;
+
+	return graphics->exports.device_get_tracy_context(graphics->device);
 }
 
 static inline struct matrix4 *top_matrix(graphics_t *graphics)

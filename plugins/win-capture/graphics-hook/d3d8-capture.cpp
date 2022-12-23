@@ -295,6 +295,8 @@ static HRESULT STDMETHODCALLTYPE hook_present(IDirect3DDevice8 *device,
 		backbuffer->Release();
 	}
 
+	global_hook_info->present_count++;
+
 	return RealPresent(device, src_rect, dst_rect, override_window,
 			   dirty_region);
 }

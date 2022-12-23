@@ -19,6 +19,7 @@
 
 #include <util/darray.h>
 #include <util/threading.h>
+#include <util/profiler.h>
 #include <graphics/graphics.h>
 #include <graphics/device-exports.h>
 #include <graphics/matrix4.h>

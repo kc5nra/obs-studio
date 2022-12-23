@@ -160,7 +160,7 @@ bool obs_init_module(obs_module_t *module)
 	const char *profile_name =
 		profile_store_name(obs_get_profiler_name_store(),
 				   "obs_init_module(%s)", module->file);
-	profile_start(profile_name);
+	PROFILE_START_EX(profile_name);
 
 	module->loaded = module->load();
 	if (!module->loaded)
@@ -352,10 +352,10 @@ static const char *reset_win32_symbol_paths_name = "reset_win32_symbol_paths";
 
 void obs_load_all_modules(void)
 {
-	profile_start(obs_load_all_modules_name);
+	PROFILE_START_EX(obs_load_all_modules_name);
 	obs_find_modules2(load_all_callback, NULL);
 #ifdef _WIN32
-	profile_start(reset_win32_symbol_paths_name);
+	PROFILE_START_EX(reset_win32_symbol_paths_name);
 	reset_win32_symbol_paths();
 	profile_end(reset_win32_symbol_paths_name);
 #endif
@@ -369,10 +369,10 @@ void obs_load_all_modules2(struct obs_module_failure_info *mfi)
 	struct fail_info fail_info = {0};
 	memset(mfi, 0, sizeof(*mfi));
 
-	profile_start(obs_load_all_modules2_name);
+	PROFILE_START_EX(obs_load_all_modules2_name);
 	obs_find_modules2(load_all_callback, &fail_info);
 #ifdef _WIN32
-	profile_start(reset_win32_symbol_paths_name);
+	PROFILE_START_EX(reset_win32_symbol_paths_name);
 	reset_win32_symbol_paths();
 	profile_end(reset_win32_symbol_paths_name);
 #endif

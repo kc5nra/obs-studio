@@ -231,6 +231,7 @@ struct obs_display {
 	pthread_mutex_t draw_info_mutex;
 	DARRAY(struct draw_callback) draw_callbacks;
 	bool use_clear_workaround;
+	const char *profile_display_name;
 
 	struct obs_display *next;
 	struct obs_display **prev_next;
@@ -867,6 +868,8 @@ struct obs_source {
 
 	struct audio_monitor *monitor;
 	enum obs_monitoring_type monitoring_type;
+
+	const char *profile_source_render_name;
 
 	obs_data_t *private_settings;
 };
