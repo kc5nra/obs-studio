@@ -129,6 +129,8 @@ struct rtmp_stream {
 	os_event_t *buffer_has_data_event;
 	os_event_t *socket_available_event;
 	os_event_t *send_thread_signaled_exit;
+
+	flv_additional_meta_data_t additional_metadata;
 };
 
 #ifdef _WIN32

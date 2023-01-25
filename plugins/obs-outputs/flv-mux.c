@@ -17,6 +17,7 @@
 
 #include <obs.h>
 #include <stdio.h>
+#include <util/darray.h>
 #include <util/dstr.h>
 #include <util/array-serializer.h>
 #include "flv-mux.h"
@@ -264,6 +265,13 @@ void flv_packet_mux(struct encoder_packet *packet, int32_t dts_offset,
 		serialize(s, str, len);             \
 	} while (false)
 
+#define s_amf_string(s, str)                    \
+	do {                                    \
+		const size_t len = strlen(str); \
+		s_wb16(s, (uint16_t)len);       \
+		serialize(s, str, len);         \
+	} while (false)
+
 #define s_amf_double(s, d)                            \
 	do {                                          \
 		double d_val = d;                     \
@@ -271,7 +279,77 @@ void flv_packet_mux(struct encoder_packet *packet, int32_t dts_offset,
 		s_wb64(s, u_val);                     \
 	} while (false)
 
-static void flv_build_additional_meta_data(uint8_t **data, size_t *size)
+static void flv_build_media_labels(struct serializer *s, struct darray *items)
+
+{
+	s_amf_conststring(s, "mediaLabels");
+	s_w8(s, AMF_OBJECT);
+	{
+		flv_media_label_t *array = items->array;
+		for (size_t i = 0; i < items->num; i++) {
+
+			flv_media_label_t *item = array + i;
+			s_amf_string(s, (char *)item->property);
+
+			switch (item->type) {
+			case FLV_MEDIA_LABEL_TYPE_NUMBER: {
+				s_w8(s, AMF_NUMBER);
+				s_amf_double(s,
+					     flv_media_label_get_number(item));
+				break;
+			}
+			case FLV_MEDIA_LABEL_TYPE_STRING: {
+				s_w8(s, AMF_STRING);
+				s_amf_string(s,
+					     (char *)flv_media_label_get_string(
+						     item));
+				break;
+			}
+			default: {
+			}
+			}
+		}
+	}
+	s_wb24(s, AMF_OBJECT_END);
+}
+
+static void
+flv_build_additional_media_data_item(struct serializer *s,
+				     flv_additional_media_data_t *md)
+{
+	s_amf_conststring(s, md->stream_name.array);
+
+	s_w8(s, AMF_OBJECT);
+	{
+		s_amf_conststring(s, "type");
+
+		s_w8(s, AMF_NUMBER);
+		s_amf_double(s, md->type == OBS_ENCODER_AUDIO
+					? RTMP_PACKET_TYPE_AUDIO
+					: RTMP_PACKET_TYPE_VIDEO);
+
+		/* ---- */
+
+		flv_build_media_labels(s, &md->media_labels.da);
+	}
+	s_wb24(s, AMF_OBJECT_END);
+}
+
+static void flv_build_default_media_item_default_object(struct serializer *s,
+							const char *type,
+							struct darray *items)
+
+{
+	s_amf_string(s, (char *)type);
+	s_w8(s, AMF_OBJECT);
+	{
+		flv_build_media_labels(s, items);
+	}
+	s_wb24(s, AMF_OBJECT_END);
+}
+
+static void flv_build_additional_meta_data(flv_additional_meta_data_t *amd,
+					   uint8_t **data, size_t *size)
 {
 	struct array_output_data out;
 	struct serializer s;
@@ -289,10 +367,10 @@ static void flv_build_additional_meta_data(uint8_t **data, size_t *size)
 		s_amf_conststring(&s, "processingIntents");
 
 		s_w8(&s, AMF_STRICT_ARRAY);
-		s_wb32(&s, 1);
-		{
+		s_wb32(&s, (uint32_t)amd->processing_intents.num);
+		for (size_t i = 0; i < amd->processing_intents.num; i++) {
 			s_w8(&s, AMF_STRING);
-			s_amf_conststring(&s, "ArchiveProgramNarrationAudio");
+			s_amf_string(&s, amd->processing_intents.array[i]);
 		}
 
 		/* ---- */
@@ -300,30 +378,18 @@ static void flv_build_additional_meta_data(uint8_t **data, size_t *size)
 		s_amf_conststring(&s, "additionalMedia");
 
 		s_w8(&s, AMF_OBJECT);
-		{
-			s_amf_conststring(&s, "stream0");
 
-			s_w8(&s, AMF_OBJECT);
-			{
-				s_amf_conststring(&s, "type");
-
-				s_w8(&s, AMF_NUMBER);
-				s_amf_double(&s, RTMP_PACKET_TYPE_AUDIO);
-
-				/* ---- */
-
-				s_amf_conststring(&s, "mediaLabels");
-
-				s_w8(&s, AMF_OBJECT);
-				{
-					s_amf_conststring(&s, "contentType");
-
-					s_w8(&s, AMF_STRING);
-					s_amf_conststring(&s, "PNAR");
-				}
-				s_wb24(&s, AMF_OBJECT_END);
-			}
-			s_wb24(&s, AMF_OBJECT_END);
+		for (size_t i = 0; i < MAX_OUTPUT_AUDIO_ENCODERS; i++) {
+			if (amd->additional_audio_media_data[i].active)
+				flv_build_additional_media_data_item(
+					&s,
+					&amd->additional_audio_media_data[i]);
+		}
+		for (size_t i = 0; i < MAX_OUTPUT_VIDEO_ENCODERS; i++) {
+			if (amd->additional_video_media_data[i].active)
+				flv_build_additional_media_data_item(
+					&s,
+					&amd->additional_video_media_data[i]);
 		}
 		s_wb24(&s, AMF_OBJECT_END);
 
@@ -333,22 +399,17 @@ static void flv_build_additional_meta_data(uint8_t **data, size_t *size)
 
 		s_w8(&s, AMF_OBJECT);
 		{
-			s_amf_conststring(&s, "audio");
+			if (amd->default_audio_media_labels.num > 0)
+				flv_build_default_media_item_default_object(
+					&s, "audio",
+					&amd->default_audio_media_labels.da);
 
-			s_w8(&s, AMF_OBJECT);
-			{
-				s_amf_conststring(&s, "mediaLabels");
+			/* ---- */
 
-				s_w8(&s, AMF_OBJECT);
-				{
-					s_amf_conststring(&s, "contentType");
-
-					s_w8(&s, AMF_STRING);
-					s_amf_conststring(&s, "PRM");
-				}
-				s_wb24(&s, AMF_OBJECT_END);
-			}
-			s_wb24(&s, AMF_OBJECT_END);
+			if (amd->default_video_media_labels.num > 0)
+				flv_build_default_media_item_default_object(
+					&s, "video",
+					&amd->default_video_media_labels.da);
 		}
 		s_wb24(&s, AMF_OBJECT_END);
 	}
@@ -358,8 +419,9 @@ static void flv_build_additional_meta_data(uint8_t **data, size_t *size)
 	*size = out.bytes.num;
 }
 
-void flv_additional_meta_data(obs_output_t *context, uint8_t **data,
-			      size_t *size)
+void flv_additional_meta_data(obs_output_t *context,
+			      flv_additional_meta_data_t *additional_meta_data,
+			      uint8_t **data, size_t *size)
 {
 	UNUSED_PARAMETER(context);
 	struct array_output_data out;
@@ -367,7 +429,8 @@ void flv_additional_meta_data(obs_output_t *context, uint8_t **data,
 	uint8_t *meta_data = NULL;
 	size_t meta_data_size;
 
-	flv_build_additional_meta_data(&meta_data, &meta_data_size);
+	flv_build_additional_meta_data(additional_meta_data, &meta_data,
+				       &meta_data_size);
 
 	array_output_serializer_init(&s, &out);
 
@@ -410,11 +473,11 @@ static inline void s_u29b_value(struct serializer *s, uint32_t val)
 	s_u29(s, 1 | ((val & 0xFFFFFFF) << 1));
 }
 
-static void flv_build_additional_audio(uint8_t **data, size_t *size,
-				       struct encoder_packet *packet,
-				       bool is_header, size_t index)
+static void
+flv_build_additional_media_data(uint8_t **data, size_t *size,
+				struct encoder_packet *packet, bool is_header,
+				flv_additional_media_data_t *media_data)
 {
-	UNUSED_PARAMETER(index);
 	struct array_output_data out;
 	struct serializer s;
 
@@ -428,7 +491,7 @@ static void flv_build_additional_audio(uint8_t **data, size_t *size,
 		s_amf_conststring(&s, "id");
 
 		s_w8(&s, AMF_STRING);
-		s_amf_conststring(&s, "stream0");
+		s_amf_string(&s, media_data->stream_name.array);
 
 		/* ----- */
 
@@ -447,9 +510,9 @@ static void flv_build_additional_audio(uint8_t **data, size_t *size,
 	*size = out.bytes.num;
 }
 
-static void flv_additional_audio(struct serializer *s, int32_t dts_offset,
-				 struct encoder_packet *packet, bool is_header,
-				 size_t index)
+static void flv_additional_stream(struct serializer *s, int32_t dts_offset,
+				  struct encoder_packet *packet, bool is_header,
+				  flv_additional_media_data_t *media_data)
 {
 	int32_t time_ms = get_ms_time(packet, packet->dts) - dts_offset;
 	uint8_t *data;
@@ -458,7 +521,8 @@ static void flv_additional_audio(struct serializer *s, int32_t dts_offset,
 	if (!packet->data || !packet->size)
 		return;
 
-	flv_build_additional_audio(&data, &size, packet, is_header, index);
+	flv_build_additional_media_data(&data, &size, packet, is_header,
+					media_data);
 
 	s_w8(s, RTMP_PACKET_TYPE_INFO); //18
 
@@ -484,19 +548,15 @@ static void flv_additional_audio(struct serializer *s, int32_t dts_offset,
 
 void flv_additional_packet_mux(struct encoder_packet *packet,
 			       int32_t dts_offset, uint8_t **data, size_t *size,
-			       bool is_header, size_t index)
+			       bool is_header,
+			       flv_additional_media_data_t *media_data)
 {
 	struct array_output_data out;
 	struct serializer s;
 
 	array_output_serializer_init(&s, &out);
 
-	if (packet->type == OBS_ENCODER_VIDEO) {
-		//currently unsupported
-		bcrash("who said you could output an additional video packet?");
-	} else {
-		flv_additional_audio(&s, dts_offset, packet, is_header, index);
-	}
+	flv_additional_stream(&s, dts_offset, packet, is_header, media_data);
 
 	*data = out.bytes.array;
 	*size = out.bytes.num;
