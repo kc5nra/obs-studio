@@ -137,7 +137,7 @@
      <item>
       <widget class="QStackedWidget" name="settingsPages">
        <property name="currentIndex">
-        <number>0</number>
+        <number>2</number>
        </property>
        <widget class="QWidget" name="generalPage">
         <layout class="QVBoxLayout" name="verticalLayout_18">
@@ -169,8 +169,8 @@
              <rect>
               <x>0</x>
               <y>0</y>
-              <width>767</width>
-              <height>1326</height>
+              <width>764</width>
+              <height>1298</height>
              </rect>
             </property>
             <layout class="QVBoxLayout" name="verticalLayout_19">
@@ -281,11 +281,11 @@
                    <string>Basic.Settings.General.Updater</string>
                   </property>
                   <layout class="QFormLayout" name="formLayout_20">
-                   <property name="labelAlignment">
-                    <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-                   </property>
                    <property name="fieldGrowthPolicy">
                     <enum>QFormLayout::AllNonFixedFieldsGrow</enum>
+                   </property>
+                   <property name="labelAlignment">
+                    <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
                    </property>
                    <item row="0" column="0">
                     <widget class="QLabel" name="updateChannelLabel">
@@ -1539,7 +1539,7 @@
             <item>
              <widget class="QStackedWidget" name="outputModePages">
               <property name="currentIndex">
-               <number>0</number>
+               <number>1</number>
               </property>
               <widget class="QWidget" name="easyOutputsPage">
                <layout class="QVBoxLayout" name="verticalLayout_3">
@@ -1572,7 +1572,7 @@
                      <x>0</x>
                      <y>0</y>
                      <width>772</width>
-                     <height>651</height>
+                     <height>652</height>
                     </rect>
                    </property>
                    <property name="sizePolicy">
@@ -2156,8 +2156,8 @@
                         <rect>
                          <x>0</x>
                          <y>0</y>
-                         <width>759</width>
-                         <height>616</height>
+                         <width>757</width>
+                         <height>617</height>
                         </rect>
                        </property>
                        <layout class="QVBoxLayout" name="verticalLayout_14">
@@ -2288,17 +2288,17 @@
                              </layout>
                             </widget>
                            </item>
-                           <item row="2" column="0">
+                           <item row="3" column="0">
                             <widget class="QLabel" name="advOutEncLabel">
                              <property name="text">
                               <string>Basic.Settings.Output.Encoder</string>
                              </property>
                             </widget>
                            </item>
-                           <item row="2" column="1">
+                           <item row="3" column="1">
                             <widget class="QComboBox" name="advOutEncoder"/>
                            </item>
-                           <item row="3" column="0">
+                           <item row="4" column="0">
                             <widget class="QCheckBox" name="advOutUseRescale">
                              <property name="sizePolicy">
                               <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
@@ -2314,10 +2314,42 @@
                              </property>
                             </widget>
                            </item>
-                           <item row="3" column="1">
+                           <item row="4" column="1">
                             <widget class="QComboBox" name="advOutRescale">
                              <property name="enabled">
                               <bool>false</bool>
+                             </property>
+                             <property name="editable">
+                              <bool>true</bool>
+                             </property>
+                            </widget>
+                           </item>
+                           <item row="5" column="0">
+                            <widget class="QCheckBox" name="advOutUseSecondEncoder">
+                             <property name="sizePolicy">
+                              <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+                               <horstretch>0</horstretch>
+                               <verstretch>0</verstretch>
+                              </sizepolicy>
+                             </property>
+                             <property name="layoutDirection">
+                              <enum>Qt::RightToLeft</enum>
+                             </property>
+                             <property name="text">
+                              <string>Basic.Settings.Output.Adv.UseSecondEncoder</string>
+                             </property>
+                            </widget>
+                           </item>
+                           <item row="5" column="1">
+                            <widget class="QComboBox" name="advOutSecondEncoderRescale">
+                             <property name="enabled">
+                              <bool>false</bool>
+                             </property>
+                             <property name="sizePolicy">
+                              <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+                               <horstretch>0</horstretch>
+                               <verstretch>0</verstretch>
+                              </sizepolicy>
                              </property>
                              <property name="editable">
                               <bool>true</bool>
@@ -2503,8 +2535,8 @@
                             <rect>
                              <x>0</x>
                              <y>0</y>
-                             <width>759</width>
-                             <height>587</height>
+                             <width>757</width>
+                             <height>589</height>
                             </rect>
                            </property>
                            <property name="sizePolicy">
@@ -3154,8 +3186,8 @@
                             <rect>
                              <x>0</x>
                              <y>0</y>
-                             <width>759</width>
-                             <height>587</height>
+                             <width>634</width>
+                             <height>467</height>
                             </rect>
                            </property>
                            <layout class="QVBoxLayout" name="verticalLayout_27">
@@ -3673,8 +3705,8 @@
                            <rect>
                             <x>0</x>
                             <y>0</y>
-                            <width>759</width>
-                            <height>616</height>
+                            <width>757</width>
+                            <height>617</height>
                            </rect>
                           </property>
                           <layout class="QVBoxLayout" name="verticalLayout_28">
@@ -4737,7 +4769,7 @@
               <x>0</x>
               <y>0</y>
               <width>781</width>
-              <height>640</height>
+              <height>636</height>
              </rect>
             </property>
             <layout class="QVBoxLayout" name="verticalLayout_50">
@@ -5670,7 +5702,7 @@
               <x>0</x>
               <y>0</y>
               <width>761</width>
-              <height>644</height>
+              <height>642</height>
              </rect>
             </property>
             <layout class="QFormLayout" name="hotkeyFormLayout">
@@ -5728,8 +5760,8 @@
              <rect>
               <x>0</x>
               <y>0</y>
-              <width>799</width>
-              <height>666</height>
+              <width>781</width>
+              <height>680</height>
              </rect>
             </property>
             <layout class="QVBoxLayout" name="verticalLayout_42">
@@ -6637,8 +6669,8 @@
              <rect>
               <x>0</x>
               <y>0</y>
-              <width>826</width>
-              <height>1000</height>
+              <width>764</width>
+              <height>927</height>
              </rect>
             </property>
             <layout class="QVBoxLayout" name="verticalLayout_23">
@@ -8109,6 +8141,22 @@
     <hint type="destinationlabel">
      <x>685</x>
      <y>191</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>advOutUseSecondEncoder</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>advOutSecondEncoderRescale</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>341</x>
+     <y>192</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>709</x>
+     <y>192</y>
     </hint>
    </hints>
   </connection>

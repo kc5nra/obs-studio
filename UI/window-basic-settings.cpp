@@ -438,6 +438,8 @@ OBSBasicSettings::OBSBasicSettings(QWidget *parent)
 	HookWidget(ui->advOutEncoder,        COMBO_CHANGED,  OUTPUTS_CHANGED);
 	HookWidget(ui->advOutUseRescale,     CHECK_CHANGED,  OUTPUTS_CHANGED);
 	HookWidget(ui->advOutRescale,        CBEDIT_CHANGED, OUTPUTS_CHANGED);
+	HookWidget(ui->advOutUseSecondEncoder, CHECK_CHANGED, OUTPUTS_CHANGED);
+	HookWidget(ui->advOutSecondEncoderRescale, CBEDIT_CHANGED, OUTPUTS_CHANGED);
 	HookWidget(ui->advOutTrack1,         CHECK_CHANGED,  OUTPUTS_CHANGED);
 	HookWidget(ui->advOutTrack2,         CHECK_CHANGED,  OUTPUTS_CHANGED);
 	HookWidget(ui->advOutTrack3,         CHECK_CHANGED,  OUTPUTS_CHANGED);
@@ -1517,6 +1519,7 @@ void OBSBasicSettings::ResetDownscales(uint32_t cx, uint32_t cy,
 				       bool ignoreAllSignals)
 {
 	QString advRescale;
+	QString advSecondEncoderRescale;
 	QString advRecRescale;
 	QString advFFRescale;
 	QString oldOutputRes;
@@ -1526,6 +1529,8 @@ void OBSBasicSettings::ResetDownscales(uint32_t cx, uint32_t cy,
 	uint32_t out_cy = outputCY;
 
 	advRescale = ui->advOutRescale->lineEdit()->text();
+	advSecondEncoderRescale =
+		ui->advOutSecondEncoderRescale->lineEdit()->text();
 	advRecRescale = ui->advOutRecRescale->lineEdit()->text();
 	advFFRescale = ui->advOutFFRescale->lineEdit()->text();
 
@@ -1537,10 +1542,12 @@ void OBSBasicSettings::ResetDownscales(uint32_t cx, uint32_t cy,
 	}
 	if (ignoreAllSignals) {
 		ui->advOutRescale->blockSignals(true);
+		ui->advOutSecondEncoderRescale->blockSignals(true);
 		ui->advOutRecRescale->blockSignals(true);
 		ui->advOutFFRescale->blockSignals(true);
 	}
 	ui->advOutRescale->clear();
+	ui->advOutSecondEncoderRescale->clear();
 	ui->advOutRecRescale->clear();
 	ui->advOutFFRescale->clear();
 
@@ -1569,6 +1576,7 @@ void OBSBasicSettings::ResetDownscales(uint32_t cx, uint32_t cy,
 		if (!lockedOutputRes)
 			ui->outputResolution->addItem(res.c_str());
 		ui->advOutRescale->addItem(outRes.c_str());
+		ui->advOutSecondEncoderRescale->addItem(outRes.c_str());
 		ui->advOutRecRescale->addItem(outRes.c_str());
 		ui->advOutFFRescale->addItem(outRes.c_str());
 
@@ -1611,17 +1619,22 @@ void OBSBasicSettings::ResetDownscales(uint32_t cx, uint32_t cy,
 
 	if (advRescale.isEmpty())
 		advRescale = res.c_str();
+	if (advSecondEncoderRescale.isEmpty())
+		advSecondEncoderRescale = res.c_str();
 	if (advRecRescale.isEmpty())
 		advRecRescale = res.c_str();
 	if (advFFRescale.isEmpty())
 		advFFRescale = res.c_str();
 
 	ui->advOutRescale->lineEdit()->setText(advRescale);
+	ui->advOutSecondEncoderRescale->lineEdit()->setText(
+		advSecondEncoderRescale);
 	ui->advOutRecRescale->lineEdit()->setText(advRecRescale);
 	ui->advOutFFRescale->lineEdit()->setText(advFFRescale);
 
 	if (ignoreAllSignals) {
 		ui->advOutRescale->blockSignals(false);
+		ui->advOutSecondEncoderRescale->blockSignals(false);
 		ui->advOutRecRescale->blockSignals(false);
 		ui->advOutFFRescale->blockSignals(false);
 	}
@@ -1886,13 +1899,22 @@ void OBSBasicSettings::LoadSimpleOutputSettings()
 void OBSBasicSettings::LoadAdvOutputStreamingSettings()
 {
 	bool rescale = config_get_bool(main->Config(), "AdvOut", "Rescale");
+	bool secondEncoderRescale =
+		config_get_bool(main->Config(), "AdvOut", "UseSecondEncoder");
+
 	const char *rescaleRes =
 		config_get_string(main->Config(), "AdvOut", "RescaleRes");
+	const char *secondEncoderRescaleRes = config_get_string(
+		main->Config(), "AdvOut", "SecondEncoderRescaleRes");
 	int trackIndex = config_get_int(main->Config(), "AdvOut", "TrackIndex");
 
 	ui->advOutUseRescale->setChecked(rescale);
 	ui->advOutRescale->setEnabled(rescale);
 	ui->advOutRescale->setCurrentText(rescaleRes);
+
+	ui->advOutUseSecondEncoder->setChecked(secondEncoderRescale);
+	ui->advOutSecondEncoderRescale->setEnabled(secondEncoderRescale);
+	ui->advOutSecondEncoderRescale->setCurrentText(secondEncoderRescaleRes);
 
 	QStringList specList = QTStr("FilenameFormatting.completer")
 				       .split(QRegularExpression("\n"));
@@ -3626,6 +3648,9 @@ void OBSBasicSettings::SaveOutputSettings()
 	SaveComboData(ui->advOutEncoder, "AdvOut", "Encoder");
 	SaveCheckBox(ui->advOutUseRescale, "AdvOut", "Rescale");
 	SaveCombo(ui->advOutRescale, "AdvOut", "RescaleRes");
+	SaveCheckBox(ui->advOutUseSecondEncoder, "AdvOut", "UseSecondEncoder");
+	SaveCombo(ui->advOutSecondEncoderRescale, "AdvOut",
+		  "SecondEncoderRescaleRes");
 	SaveTrackIndex(main->Config(), "AdvOut", "TrackIndex", ui->advOutTrack1,
 		       ui->advOutTrack2, ui->advOutTrack3, ui->advOutTrack4,
 		       ui->advOutTrack5, ui->advOutTrack6);
@@ -4067,6 +4092,8 @@ void OBSBasicSettings::on_advOutEncoder_currentIndexChanged(int idx)
 
 	ui->advOutUseRescale->setVisible(true);
 	ui->advOutRescale->setVisible(true);
+	ui->advOutUseSecondEncoder->setVisible(true);
+	ui->advOutSecondEncoderRescale->setVisible(true);
 
 	UNUSED_PARAMETER(idx);
 }
