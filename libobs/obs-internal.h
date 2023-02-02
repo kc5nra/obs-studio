@@ -1162,6 +1162,7 @@ struct obs_encoder {
 	uint32_t scaled_width;
 	uint32_t scaled_height;
 	enum video_format preferred_format;
+	struct obs_tex_frame scaled_input;
 
 	volatile bool active;
 	volatile bool paused;

@@ -17,6 +17,90 @@
 
 #include "obs-internal.h"
 
+static const char *scale_input_texture_name = "scale_input_texture";
+static inline struct obs_tex_frame *
+scale_input_texture(struct obs_core_video_mix *mix,
+		    struct obs_tex_frame *input_texture,
+		    struct obs_tex_frame *target)
+{
+	struct obs_core_video *video = &obs->video;
+	//gs_texture_t *texture = mix->render_texture;
+	//gs_texture_t *target = mix->output_texture;
+	uint32_t input_width = gs_texture_get_width(input_texture->tex);
+	uint32_t input_height = gs_texture_get_height(input_texture->tex);
+	uint32_t width = gs_texture_get_width(target->tex);
+	uint32_t height = gs_texture_get_height(target->tex);
+	gs_effect_t *effect = video->bicubic_effect;
+	gs_technique_t *tech;
+
+	/* if the dimension is under half the size of the original image,
+	 * bicubic/lanczos can't sample enough pixels to create an accurate
+	 * image, so use the bilinear low resolution effect instead */
+	if (width < (input_width / 2) && height < (input_height / 2)) {
+		effect = video->bilinear_lowres_effect;
+	}
+
+	if (video_output_get_format(mix->video) == VIDEO_FORMAT_BGRA) {
+		tech = gs_effect_get_technique(effect, "DrawAlphaDivide");
+	} else {
+		if ((width == gs_texture_get_width(input_texture->tex)) &&
+		    (height == gs_texture_get_height(input_texture->tex)))
+			return input_texture;
+
+		tech = gs_effect_get_technique(effect, "Draw");
+	}
+
+	profile_start(scale_input_texture_name);
+
+	gs_eparam_t *image = gs_effect_get_param_by_name(effect, "image");
+	gs_eparam_t *bres =
+		gs_effect_get_param_by_name(effect, "base_dimension");
+	gs_eparam_t *bres_i =
+		gs_effect_get_param_by_name(effect, "base_dimension_i");
+	size_t passes, i;
+
+	gs_set_render_target(target->tex, NULL);
+
+	//set_render_size(width, height);
+	gs_enable_depth_test(false);
+	gs_set_cull_mode(GS_NEITHER);
+
+	gs_ortho(0.0f, (float)width, 0.0f, (float)height, -100.0f, 100.0f);
+	gs_set_viewport(0, 0, width, height);
+
+	if (bres) {
+		struct vec2 base;
+		vec2_set(&base, (float)mix->ovi.base_width,
+			 (float)mix->ovi.base_height);
+		gs_effect_set_vec2(bres, &base);
+	}
+
+	if (bres_i) {
+		struct vec2 base_i;
+		vec2_set(&base_i, 1.0f / (float)mix->ovi.base_width,
+			 1.0f / (float)mix->ovi.base_height);
+		gs_effect_set_vec2(bres_i, &base_i);
+	}
+
+	gs_effect_set_texture_srgb(image, input_texture->tex);
+
+	gs_enable_framebuffer_srgb(true);
+	gs_enable_blending(false);
+	passes = gs_technique_begin(tech);
+	for (i = 0; i < passes; i++) {
+		gs_technique_begin_pass(tech, i);
+		gs_draw_sprite(input_texture->tex, 0, width, height);
+		gs_technique_end_pass(tech);
+	}
+	gs_technique_end(tech);
+	gs_enable_blending(true);
+	gs_enable_framebuffer_srgb(false);
+
+	profile_end(scale_input_texture_name);
+
+	return target;
+}
+
 static void *gpu_encode_thread(struct obs_core_video_mix *video)
 {
 	uint64_t interval = video_output_get_frame_time(video->video);
@@ -32,6 +116,7 @@ static void *gpu_encode_thread(struct obs_core_video_mix *video)
 		uint64_t timestamp;
 		uint64_t lock_key;
 		uint64_t next_key;
+		uint64_t next_input_key;
 		size_t lock_count = 0;
 
 		if (os_atomic_load_bool(&video->gpu_encode_stop))
@@ -45,13 +130,15 @@ static void *gpu_encode_thread(struct obs_core_video_mix *video)
 		os_event_reset(video->gpu_encode_inactive);
 
 		/* -------------- */
+		const struct video_output_info *info =
+			video_output_get_info(video->video);
 
 		pthread_mutex_lock(&video->gpu_encoder_mutex);
 
 		circlebuf_pop_front(&video->gpu_encoder_queue, &tf, sizeof(tf));
 		timestamp = tf.timestamp;
 		lock_key = tf.lock_key;
-		next_key = tf.lock_key;
+		next_input_key = tf.lock_key;
 
 		video_output_inc_texture_frames(video->video);
 
@@ -94,22 +181,45 @@ static void *gpu_encode_thread(struct obs_core_video_mix *video)
 						     encoder->context.settings);
 			}
 
+			// HACK!!! Scale input frame to encoder's desired width/height if needed
+			struct obs_tex_frame *input = &tf;
+			bool scaled = false;
+
+			if (encoder->scaled_input.tex != NULL &&
+				info->width != obs_encoder_get_width(encoder) &&
+				info->height != obs_encoder_get_height(encoder)) {
+
+				obs_enter_graphics();
+				//pthread_mutex_lock(&video->gpu_encoder_mutex);
+				input = scale_input_texture(video, &tf, &encoder->scaled_input);
+				//pthread_mutex_unlock(&video->gpu_encoder_mutex);
+				obs_leave_graphics();
+
+				scaled = true;
+				lock_key = input->lock_key;
+				next_key = !input->lock_key;
+			} else {
+				lock_key = next_input_key;
+				next_input_key++;
+				if (next_input_key >= encoders.num)
+					next_input_key = 0;
+				next_key = next_input_key;
+			}
+
 			if (!encoder->start_ts)
 				encoder->start_ts = timestamp;
 
-			if (++lock_count == encoders.num)
-				next_key = 0;
-			else
-				next_key++;
-
 			success = encoder->info.encode_texture(
-				encoder->context.data, tf.handle,
-				encoder->cur_pts, lock_key, &next_key, &pkt,
+				encoder->context.data, input->handle,
+				encoder->cur_pts, lock_key, &next_key,
+				&pkt,
 				&received);
+
+			if (scaled) {
+				input->lock_key = next_key;
+			}
 			send_off_encoder_packet(encoder, success, received,
 						&pkt);
-
-			lock_key = next_key;
 
 			encoder->cur_pts += encoder->timebase_num;
 		}
@@ -118,7 +228,7 @@ static void *gpu_encode_thread(struct obs_core_video_mix *video)
 
 		pthread_mutex_lock(&video->gpu_encoder_mutex);
 
-		tf.lock_key = next_key;
+		tf.lock_key = next_input_key;
 
 		if (--tf.count) {
 			tf.timestamp += interval;

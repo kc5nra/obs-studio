@@ -150,7 +150,7 @@ struct ffmpeg_mux {
 	AVFormatContext *output;
 	AVPacket *packet;
 	struct main_params params;
-	struct encoder_info video_infos[MAX_OUTPUT_AUDIO_ENCODERS];
+	struct encoder_info video_infos[MAX_OUTPUT_VIDEO_ENCODERS];
 	struct encoder_info audio_infos[MAX_OUTPUT_AUDIO_ENCODERS];
 	struct video_params video[MAX_OUTPUT_VIDEO_ENCODERS];
 	struct audio_params audio[MAX_OUTPUT_AUDIO_ENCODERS];
@@ -224,7 +224,13 @@ static void ffmpeg_mux_free(struct ffmpeg_mux *ffm)
 
 	free_avformat(ffm);
 
-	header_free(&ffm->video_header);
+	if (ffm->video_header) {
+		for (int i = 0; i < MAX_OUTPUT_VIDEO_ENCODERS; i++) {
+			if (ffm->video_header[i].size) {
+				header_free(&ffm->video_header[i]);
+			}
+		}
+	}
 
 	if (ffm->audio_header) {
 		for (int i = 0; i < MAX_OUTPUT_AUDIO_ENCODERS; i++) {
@@ -271,7 +277,7 @@ static bool get_opt_int(int *p_argc, char ***p_argv, int *i, const char *opt)
 	return true;
 }
 
-static bool get_opt_uint(int *p_argc, char ***p_argv, unsigned long *i,
+static bool get_opt_uint(int *p_argc, char ***p_argv, size_t *i,
 			 const char *opt)
 {
 	char *str_start;
@@ -382,6 +388,7 @@ static bool init_params(int *argc, char ***argv, struct main_params *params,
 			struct video_params *video_params,
 			struct audio_params *audio_params)
 {
+
 	if (!get_opt_str(argc, argv, &params->file, "file name"))
 		return false;
 	if (!get_opt_uint(argc, argv, &params->video_tracks,
@@ -644,7 +651,8 @@ static void ffmpeg_mux_header(struct ffmpeg_mux *ffm, uint8_t *data,
 			      struct ffm_packet_info *info)
 {
 	if (info->type == FFM_PACKET_VIDEO) {
-		set_header(&ffm->video_header, data, (size_t)info->size);
+		set_header(&ffm->video_header[info->index], data,
+			   (size_t)info->size);
 	} else {
 		set_header(&ffm->audio_header[info->index], data,
 			   (size_t)info->size);
@@ -1107,7 +1115,7 @@ static int ffmpeg_mux_init_internal(struct ffmpeg_mux *ffm, int argc,
 {
 	argc--;
 	argv++;
-	if (!init_params(&argc, &argv, &ffm->params, &ffm->video, &ffm->audio))
+	if (!init_params(&argc, &argv, &ffm->params, &ffm->video[0], &ffm->audio[0]))
 		return FFM_ERROR;
 
 #if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(58, 9, 100)

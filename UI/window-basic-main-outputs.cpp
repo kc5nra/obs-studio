@@ -915,10 +915,15 @@ bool SimpleOutput::SetupStreaming(obs_service_t *service)
 
 static inline bool ServiceSupportsVodTrack(const char *service);
 
-static void clear_archive_encoder(obs_output_t *output,
-				  const char *expected_name)
+static void clear_encoder_by_name(obs_output_t *output,
+				  enum obs_encoder_type type,
+				  const char *expected_name, size_t idx)
 {
-	obs_encoder_t *last = obs_output_get_audio_encoder(output, 1);
+	obs_encoder_t *last = NULL;
+	if (type == OBS_ENCODER_AUDIO)
+		last = obs_output_get_audio_encoder(output, idx);
+	else
+		last = obs_output_get_video_encoder2(output, idx);
 	bool clear = false;
 
 	/* ensures that we don't remove twitch's soundtrack encoder */
@@ -928,8 +933,12 @@ static void clear_archive_encoder(obs_output_t *output,
 		obs_encoder_release(last);
 	}
 
-	if (clear)
-		obs_output_set_audio_encoder(output, nullptr, 1);
+	if (clear) {
+		if (type == OBS_ENCODER_AUDIO)
+			obs_output_set_audio_encoder(output, nullptr, idx);
+		else
+			obs_output_set_video_encoder2(output, nullptr, idx);
+	}
 }
 
 void SimpleOutput::SetupVodTrack(obs_service_t *service)
@@ -953,7 +962,7 @@ void SimpleOutput::SetupVodTrack(obs_service_t *service)
 	if (enable)
 		obs_output_set_audio_encoder(streamOutput, aacArchive, 1);
 	else
-		clear_archive_encoder(streamOutput, SIMPLE_ARCHIVE_NAME);
+		clear_encoder_by_name(streamOutput, OBS_ENCODER_AUDIO, SIMPLE_ARCHIVE_NAME, 1);
 }
 
 bool SimpleOutput::StartStreaming(obs_service_t *service)
@@ -1179,7 +1188,7 @@ struct AdvancedOutput : BasicOutputHandler {
 	OBSEncoder streamAudioEnc;
 	OBSEncoder streamArchiveEnc;
 	OBSEncoder aacTrack[MAX_AUDIO_MIXES];
-	OBSEncoder videoStreaming;
+	OBSEncoder videoStreaming[3];
 	OBSEncoder videoRecording;
 
 	bool ffmpegOutput;
@@ -1197,6 +1206,7 @@ struct AdvancedOutput : BasicOutputHandler {
 	virtual void Update() override;
 
 	inline void SetupVodTrack(obs_service_t *service);
+	inline void SetupMultiVideo(obs_service_t *service, int index);
 
 	inline void SetupStreaming();
 	inline void SetupRecording();
@@ -1338,13 +1348,45 @@ AdvancedOutput::AdvancedOutput(OBSBasic *main_) : BasicOutputHandler(main_)
 		}
 	}
 
-	videoStreaming = obs_video_encoder_create(streamEncoder,
-						  "advanced_video_stream",
+	obs_data_set_string(streamEncSettings, "profile", "high"); // HACK!!!
+	videoStreaming[0] = obs_video_encoder_create(streamEncoder,
+						  "advanced_video_stream1",
 						  streamEncSettings, nullptr);
-	if (!videoStreaming)
-		throw "Failed to create streaming video encoder "
+	if (!videoStreaming[0])
+		throw "Failed to create streaming video encoder 1 "
 		      "(advanced output)";
-	obs_encoder_release(videoStreaming);
+	obs_encoder_release(videoStreaming[0]);
+
+	// HACK!!! Create additional video encoders
+	OBSData streamEncSettings2 = GetDataFromJsonFile("streamEncoder.json");
+	obs_data_set_int(streamEncSettings2, "bitrate", 3100);
+	obs_data_set_string(streamEncSettings2, "preset", "ll"); // "llhq"
+	obs_data_set_string(streamEncSettings2, "profile", "main");
+	obs_data_set_bool(streamEncSettings2, "lookahead", false);
+	obs_data_set_int(streamEncSettings2, "bf", 2);
+	videoStreaming[1] = obs_video_encoder_create(streamEncoder,
+						     "advanced_video_stream2",
+						     streamEncSettings2,
+						     nullptr);
+	if (!videoStreaming[1])
+		throw "Failed to create streaming video encoder 2 "
+		      "(advanced output)";
+	obs_encoder_release(videoStreaming[1]);
+
+	OBSData streamEncSettings3 = GetDataFromJsonFile("streamEncoder.json");
+	obs_data_set_int(streamEncSettings3, "bitrate", 2100);
+	obs_data_set_string(streamEncSettings3, "preset", "ll"); // "llhq"
+	obs_data_set_string(streamEncSettings3, "profile", "main");
+	obs_data_set_bool(streamEncSettings3, "lookahead", false);
+	obs_data_set_int(streamEncSettings3, "bf", 2);
+	videoStreaming[2] = obs_video_encoder_create(streamEncoder,
+						     "advanced_video_stream3",
+						     streamEncSettings3,
+						     nullptr);
+	if (!videoStreaming[2])
+		throw "Failed to create streaming video encoder 3 "
+		      "(advanced output)";
+	obs_encoder_release(videoStreaming[2]);
 
 	const char *rate_control = obs_data_get_string(
 		useStreamEncoder ? streamEncSettings : recordEncSettings,
@@ -1403,7 +1445,7 @@ void AdvancedOutput::UpdateStreamSettings()
 		config_get_string(main->Config(), "AdvOut", "Encoder");
 
 	OBSData settings = GetDataFromJsonFile("streamEncoder.json");
-	ApplyEncoderDefaults(settings, videoStreaming);
+	ApplyEncoderDefaults(settings, videoStreaming[0]);
 
 	if (applyServiceSettings) {
 		int bitrate = (int)obs_data_get_int(settings, "bitrate");
@@ -1432,11 +1474,13 @@ void AdvancedOutput::UpdateStreamSettings()
 	case VIDEO_FORMAT_P010:
 		break;
 	default:
-		obs_encoder_set_preferred_video_format(videoStreaming,
-						       VIDEO_FORMAT_NV12);
+		obs_encoder_set_preferred_video_format(videoStreaming[0], VIDEO_FORMAT_NV12);
+		obs_encoder_set_preferred_video_format(videoStreaming[1], VIDEO_FORMAT_NV12);
+		obs_encoder_set_preferred_video_format(videoStreaming[2], VIDEO_FORMAT_NV12);
 	}
 
-	obs_encoder_update(videoStreaming, settings);
+	// TODO: Update multi video encoders ???
+	obs_encoder_update(videoStreaming[0], settings);
 }
 
 inline void AdvancedOutput::UpdateRecordingSettings()
@@ -1481,14 +1525,22 @@ inline void AdvancedOutput::SetupStreaming()
 	}
 
 	obs_output_set_audio_encoder(streamOutput, streamAudioEnc, 0);
-	obs_encoder_set_scaled_size(videoStreaming, cx, cy);
+	obs_encoder_set_scaled_size(videoStreaming[0], cx, cy);
+
+	// HACK!!! Setup multiple video encoders
+	obs_encoder_set_scaled_size(videoStreaming[1], 1280, 720);
+	obs_encoder_set_video(videoStreaming[1], obs_get_video());
+	obs_encoder_set_scaled_size(videoStreaming[2], 852, 480);
+	obs_encoder_set_video(videoStreaming[2], obs_get_video());
 
 	const char *id = obs_service_get_id(main->GetService());
 	if (strcmp(id, "rtmp_custom") == 0) {
 		OBSDataAutoRelease settings = obs_data_create();
 		obs_service_apply_encoder_settings(main->GetService(), settings,
 						   nullptr);
-		obs_encoder_update(videoStreaming, settings);
+		obs_encoder_update(videoStreaming[0], settings);
+		obs_encoder_update(videoStreaming[1], settings);
+		obs_encoder_update(videoStreaming[2], settings);
 	}
 }
 
@@ -1522,10 +1574,14 @@ inline void AdvancedOutput::SetupRecording()
 		tracks = config_get_int(main->Config(), "AdvOut", "TrackIndex");
 
 	if (useStreamEncoder) {
-		obs_output_set_video_encoder(fileOutput, videoStreaming);
+		obs_output_set_video_encoder2(fileOutput, videoStreaming[0], 0);
 		if (replayBuffer)
 			obs_output_set_video_encoder(replayBuffer,
-						     videoStreaming);
+						     videoStreaming[0]);
+
+		// HACK!!! Output multiple video encoders
+		obs_output_set_video_encoder2(fileOutput, videoStreaming[1], 1);
+		obs_output_set_video_encoder2(fileOutput, videoStreaming[2], 2);
 	} else {
 		if (rescale && rescaleRes && *rescaleRes) {
 			if (sscanf(rescaleRes, "%ux%u", &cx, &cy) != 2) {
@@ -1691,9 +1747,14 @@ inline void AdvancedOutput::UpdateAudioSettings()
 
 void AdvancedOutput::SetupOutputs()
 {
-	obs_encoder_set_video(videoStreaming, obs_get_video());
+	obs_encoder_set_video(videoStreaming[0], obs_get_video());
 	if (videoRecording)
 		obs_encoder_set_video(videoRecording, obs_get_video());
+
+	// HACK!!! Setup multiple video encoders
+	obs_encoder_set_video(videoStreaming[1], obs_get_video());
+	obs_encoder_set_video(videoStreaming[2], obs_get_video());
+
 	for (size_t i = 0; i < MAX_AUDIO_MIXES; i++)
 		obs_encoder_set_audio(aacTrack[i], obs_get_audio());
 	obs_encoder_set_audio(streamAudioEnc, obs_get_audio());
@@ -1742,7 +1803,36 @@ inline void AdvancedOutput::SetupVodTrack(obs_service_t *service)
 	if (vodTrackEnabled && streamTrack != vodTrackIndex)
 		obs_output_set_audio_encoder(streamOutput, streamArchiveEnc, 1);
 	else
-		clear_archive_encoder(streamOutput, ADV_ARCHIVE_NAME);
+		clear_encoder_by_name(streamOutput, OBS_ENCODER_AUDIO, ADV_ARCHIVE_NAME, 1);
+}
+
+void AdvancedOutput::SetupMultiVideo(obs_service_t* service, int index)
+{
+	// @jocbrad We'll assume presence of vod track == second video stream ability
+	bool enableForCustomServer = config_get_bool(
+		GetGlobalConfig(), "General", "EnableCustomServerVodTrack");
+
+	bool supported = true;
+
+	const char *id = obs_service_get_id(service);
+	if (strcmp(id, "rtmp_custom") == 0) {
+		// @jocbrad For now, use second encoder regardless of whether it is
+		// custom rtmp
+		// useSecondEncoder = enableForCustomServer ? useSecondEncoder
+		// 					 : false;
+	} else {
+		OBSDataAutoRelease settings = obs_service_get_settings(service);
+		const char *service = obs_data_get_string(settings, "service");
+		if (!ServiceSupportsVodTrack(service))
+			supported = false;
+	}
+
+	if (supported)
+		obs_output_set_video_encoder2(streamOutput, videoStreaming[index], index);
+	else {
+		std::string name = "advanced_video_stream" + std::to_string(index + 1);
+		clear_encoder_by_name(streamOutput, OBS_ENCODER_VIDEO, name.c_str(), index);
+	}
 }
 
 bool AdvancedOutput::SetupStreaming(obs_service_t *service)
@@ -1847,8 +1937,12 @@ bool AdvancedOutput::SetupStreaming(obs_service_t *service)
 		outputType = type;
 	}
 
-	obs_output_set_video_encoder(streamOutput, videoStreaming);
+	obs_output_set_video_encoder2(streamOutput, videoStreaming[0], 0);
 	obs_output_set_audio_encoder(streamOutput, streamAudioEnc, 0);
+
+	// HACK!! Setup multiple video encoders
+	obs_output_set_video_encoder2(streamOutput, videoStreaming[1], 1);
+	obs_output_set_video_encoder2(streamOutput, videoStreaming[2], 2);
 
 	return true;
 }
@@ -1892,6 +1986,8 @@ bool AdvancedOutput::StartStreaming(obs_service_t *service)
 	obs_output_set_reconnect_settings(streamOutput, maxRetries, retryDelay);
 
 	SetupVodTrack(service);
+	SetupMultiVideo(service, 1);
+	SetupMultiVideo(service, 2);
 
 	if (obs_output_start(streamOutput)) {
 		return true;
