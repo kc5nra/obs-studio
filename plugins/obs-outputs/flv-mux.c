@@ -499,9 +499,19 @@ flv_build_additional_media_data(uint8_t **data, size_t *size,
 
 		s_w8(&s, AMF_AVMPLUS);
 		s_w8(&s, AMF3_BYTE_ARRAY);
-		s_u29b_value(&s, (uint32_t)packet->size + 2);
-		s_w8(&s, 0xaf);
-		s_w8(&s, is_header ? 0 : 1);
+
+		if (packet->type == OBS_ENCODER_AUDIO) {
+			s_u29b_value(&s, (uint32_t)packet->size + 2);
+			s_w8(&s, 0xaf);
+			s_w8(&s, is_header ? 0 : 1);
+		} else {
+			int64_t offset = packet->pts - packet->dts;
+			/* these are the 5 extra bytes mentioned above */
+			s_u29b_value(&s, (uint32_t)packet->size + 5);
+			s_w8(&s, packet->keyframe ? 0x17 : 0x27);
+			s_w8(&s, is_header ? 0 : 1);
+			s_wb24(&s, get_ms_time(packet, offset));
+		}
 		s_write(&s, packet->data, packet->size);
 	}
 	s_wb24(&s, AMF_OBJECT_END);

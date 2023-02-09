@@ -851,12 +851,13 @@ static inline bool send_headers(struct rtmp_stream *stream)
 	if (!send_video_header(stream, 0, &next_video))
 		return false;
 
-	i = 0;
+	i = 1;
 	while (next_audio) {
 		if (!send_audio_header(stream, i++, &next_audio))
 			return false;
 	}
 
+	i = 1;
 	while (next_video) {
 		if (!send_video_header(stream, i++, &next_video))
 			return false;
