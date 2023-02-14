@@ -7183,7 +7183,7 @@ void OBSBasic::AutoRemux(QString input, bool no_show)
 	output.resize(output.size() - suffix.size());
 
 	const obs_encoder_t *videoEncoder =
-		obs_output_get_video_encoder(outputHandler->fileOutput);
+		obs_output_get_video_encoder(outputHandler->fileOutput[0]); // HACK!!!
 	const char *codecName = obs_encoder_get_codec(videoEncoder);
 
 	if (strcmp(codecName, "prores") == 0) {
@@ -7250,7 +7250,7 @@ void OBSBasic::StopRecording()
 
 void OBSBasic::RecordingStart()
 {
-	ui->statusbar->RecordingStarted(outputHandler->fileOutput);
+	ui->statusbar->RecordingStarted(outputHandler->fileOutput[0]); // HACK!!!
 	ui->recordButton->setText(QTStr("Basic.Main.StopRecording"));
 	ui->recordButton->setChecked(true);
 
@@ -9914,11 +9914,11 @@ void OBSBasic::UpdatePatronJson(const QString &text, const QString &error)
 
 void OBSBasic::PauseRecording()
 {
-	if (!pause || !outputHandler || !outputHandler->fileOutput ||
+	if (!pause || !outputHandler || !outputHandler->fileOutput[0] ||
 	    os_atomic_load_bool(&recording_paused))
 		return;
 
-	obs_output_t *output = outputHandler->fileOutput;
+	obs_output_t *output = outputHandler->fileOutput[0];
 
 	if (obs_output_pause(output, true)) {
 		pause->setAccessibleName(QTStr("Basic.Main.UnpauseRecording"));
@@ -9960,11 +9960,11 @@ void OBSBasic::PauseRecording()
 
 void OBSBasic::UnpauseRecording()
 {
-	if (!pause || !outputHandler || !outputHandler->fileOutput ||
+	if (!pause || !outputHandler || !outputHandler->fileOutput[0] ||
 	    !os_atomic_load_bool(&recording_paused))
 		return;
 
-	obs_output_t *output = outputHandler->fileOutput;
+	obs_output_t *output = outputHandler->fileOutput[0];
 
 	if (obs_output_pause(output, false)) {
 		pause->setAccessibleName(QTStr("Basic.Main.PauseRecording"));
@@ -10003,10 +10003,10 @@ void OBSBasic::UnpauseRecording()
 
 void OBSBasic::PauseToggled()
 {
-	if (!pause || !outputHandler || !outputHandler->fileOutput)
+	if (!pause || !outputHandler || !outputHandler->fileOutput[0]) // HACK!!!
 		return;
 
-	obs_output_t *output = outputHandler->fileOutput;
+	obs_output_t *output = outputHandler->fileOutput[0]; // HACK!!!
 	bool enable = !obs_output_paused(output);
 
 	if (enable)
