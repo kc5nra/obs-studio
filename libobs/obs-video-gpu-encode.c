@@ -17,19 +17,15 @@
 
 #include "obs-internal.h"
 
-static const char *scale_input_texture_name = "scale_input_texture";
-static inline struct obs_tex_frame *
-scale_input_texture(struct obs_core_video_mix *mix,
-		    struct obs_tex_frame *input_texture,
-		    struct obs_tex_frame *target)
+static const char *scale_texture_name = "scale_texture";
+static inline bool
+scale_texture(struct obs_core_video_mix *mix, gs_texture_t *input, gs_texture_t *target)
 {
 	struct obs_core_video *video = &obs->video;
-	//gs_texture_t *texture = mix->render_texture;
-	//gs_texture_t *target = mix->output_texture;
-	uint32_t input_width = gs_texture_get_width(input_texture->tex);
-	uint32_t input_height = gs_texture_get_height(input_texture->tex);
-	uint32_t width = gs_texture_get_width(target->tex);
-	uint32_t height = gs_texture_get_height(target->tex);
+	uint32_t input_width = gs_texture_get_width(input);
+	uint32_t input_height = gs_texture_get_height(input);
+	uint32_t width = gs_texture_get_width(target);
+	uint32_t height = gs_texture_get_height(target);
 	gs_effect_t *effect = video->bicubic_effect;
 	gs_technique_t *tech;
 
@@ -43,14 +39,13 @@ scale_input_texture(struct obs_core_video_mix *mix,
 	if (video_output_get_format(mix->video) == VIDEO_FORMAT_BGRA) {
 		tech = gs_effect_get_technique(effect, "DrawAlphaDivide");
 	} else {
-		if ((width == gs_texture_get_width(input_texture->tex)) &&
-		    (height == gs_texture_get_height(input_texture->tex)))
-			return input_texture;
+		if (width == input_width && height == input_height)
+			return false;
 
 		tech = gs_effect_get_technique(effect, "Draw");
 	}
 
-	profile_start(scale_input_texture_name);
+	profile_start(scale_texture_name);
 
 	gs_eparam_t *image = gs_effect_get_param_by_name(effect, "image");
 	gs_eparam_t *bres =
@@ -59,7 +54,7 @@ scale_input_texture(struct obs_core_video_mix *mix,
 		gs_effect_get_param_by_name(effect, "base_dimension_i");
 	size_t passes, i;
 
-	gs_set_render_target(target->tex, NULL);
+	gs_set_render_target(target, NULL);
 
 	//set_render_size(width, height);
 	gs_enable_depth_test(false);
@@ -82,23 +77,23 @@ scale_input_texture(struct obs_core_video_mix *mix,
 		gs_effect_set_vec2(bres_i, &base_i);
 	}
 
-	gs_effect_set_texture_srgb(image, input_texture->tex);
+	gs_effect_set_texture_srgb(image, input);
 
 	gs_enable_framebuffer_srgb(true);
 	gs_enable_blending(false);
 	passes = gs_technique_begin(tech);
 	for (i = 0; i < passes; i++) {
 		gs_technique_begin_pass(tech, i);
-		gs_draw_sprite(input_texture->tex, 0, width, height);
+		gs_draw_sprite(input, 0, width, height);
 		gs_technique_end_pass(tech);
 	}
 	gs_technique_end(tech);
 	gs_enable_blending(true);
 	gs_enable_framebuffer_srgb(false);
 
-	profile_end(scale_input_texture_name);
+	profile_end(scale_texture_name);
 
-	return target;
+	return true;
 }
 
 static void *gpu_encode_thread(struct obs_core_video_mix *video)
@@ -191,13 +186,43 @@ static void *gpu_encode_thread(struct obs_core_video_mix *video)
 
 				obs_enter_graphics();
 				//pthread_mutex_lock(&video->gpu_encoder_mutex);
-				input = scale_input_texture(video, &tf, &encoder->scaled_input);
+
+				// Acquire texture locks
+				gs_texture_acquire_sync(tf.tex, next_input_key, GS_WAIT_INFINITE);
+				gs_texture_acquire_sync(encoder->scaled_input.tex, encoder->scaled_input.lock_key, GS_WAIT_INFINITE);
+
+				scaled = scale_texture(video, tf.tex, encoder->scaled_input.tex);
+
+				// Release texture locks
+				encoder->scaled_input.lock_key = !encoder->scaled_input.lock_key;
+				gs_texture_release_sync(encoder->scaled_input.tex, encoder->scaled_input.lock_key);
+				next_input_key++;
+				gs_texture_release_sync(tf.tex,next_input_key);
+
+				// Scale paired UV texture if necessary
+				if (scaled && tf.tex_uv) {
+					// Acquire texture locks
+					gs_texture_acquire_sync(tf.tex_uv, next_input_key, GS_WAIT_INFINITE);
+					gs_texture_acquire_sync(encoder->scaled_input.tex_uv, encoder->scaled_input.lock_key, GS_WAIT_INFINITE);
+
+					scaled = scale_texture(video, tf.tex_uv, encoder->scaled_input.tex_uv);
+
+					// Release texture locks
+					encoder->scaled_input.lock_key = !encoder->scaled_input.lock_key;
+					gs_texture_release_sync(encoder->scaled_input.tex_uv, encoder->scaled_input.lock_key);
+					next_input_key++;
+					gs_texture_release_sync(tf.tex_uv, next_input_key);
+				}
+
 				//pthread_mutex_unlock(&video->gpu_encoder_mutex);
 				obs_leave_graphics();
 
-				scaled = true;
-				lock_key = input->lock_key;
-				next_key = !input->lock_key;
+				if (scaled) {
+					input = &encoder->scaled_input;
+					lock_key = input->lock_key;
+					next_key = !input->lock_key;
+				}
+
 			} else {
 				lock_key = next_input_key;
 				next_input_key++;

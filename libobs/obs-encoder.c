@@ -701,6 +701,7 @@ void obs_encoder_set_scaled_size(obs_encoder_t *encoder, uint32_t width,
 	encoder->scaled_width = width;
 	encoder->scaled_height = height;
 
+#ifdef _WIN32
 	// HACK!!! Create scaled input encoder texture if needed
 	struct obs_core_video_mix *video = get_mix_for_video(encoder->media);
 
@@ -741,6 +742,7 @@ void obs_encoder_set_scaled_size(obs_encoder_t *encoder, uint32_t width,
 
 		pthread_mutex_unlock(&video->gpu_encoder_mutex);
 		obs_leave_graphics();
+#endif
 	}
 }
 
