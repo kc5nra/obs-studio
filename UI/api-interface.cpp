@@ -325,7 +325,7 @@ struct OBSStudioAPI : obs_frontend_callbacks {
 		if (os_atomic_load_bool(&recording_active) &&
 		    !os_atomic_load_bool(&recording_paused)) {
 			proc_handler_t *ph = obs_output_get_proc_handler(
-				main->outputHandler->fileOutput);
+				main->outputHandler->fileOutput[0]); // HACK!!!
 			uint8_t stack[128];
 			calldata cd;
 			calldata_init_fixed(&cd, stack, sizeof(stack));
@@ -408,7 +408,7 @@ struct OBSStudioAPI : obs_frontend_callbacks {
 
 	obs_output_t *obs_frontend_get_recording_output(void) override
 	{
-		OBSOutput out = main->outputHandler->fileOutput.Get();
+		OBSOutput out = main->outputHandler->fileOutput[0].Get(); // HACK!!!
 		return obs_output_get_ref(out);
 	}
 

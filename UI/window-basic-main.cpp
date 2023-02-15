@@ -5626,6 +5626,7 @@ void OBSBasic::CreateSourcePopupMenu(int idx, bool preview)
 		bool isAsyncVideo = (flags & OBS_SOURCE_ASYNC_VIDEO) ==
 				    OBS_SOURCE_ASYNC_VIDEO;
 		bool hasAudio = (flags & OBS_SOURCE_AUDIO) == OBS_SOURCE_AUDIO;
+		bool hasVideo = (flags & OBS_SOURCE_VIDEO) == OBS_SOURCE_VIDEO;
 
 		colorMenu = new QMenu(QTStr("ChangeBG"));
 		colorWidgetAction = new QWidgetAction(colorMenu);
@@ -5639,7 +5640,9 @@ void OBSBasic::CreateSourcePopupMenu(int idx, bool preview)
 		popup.addSeparator();
 
 		popup.addMenu(ui->orderMenu);
-		popup.addMenu(ui->transformMenu);
+
+		if (hasVideo)
+			popup.addMenu(ui->transformMenu);
 
 		popup.addSeparator();
 
@@ -5652,45 +5655,48 @@ void OBSBasic::CreateSourcePopupMenu(int idx, bool preview)
 			popup.addSeparator();
 		}
 
-		QAction *resizeOutput =
-			popup.addAction(QTStr("ResizeOutputSizeOfSource"), this,
-					SLOT(ResizeOutputSizeOfSource()));
+		if (hasVideo) {
+			QAction *resizeOutput = popup.addAction(
+				QTStr("ResizeOutputSizeOfSource"), this,
+				SLOT(ResizeOutputSizeOfSource()));
 
-		int width = obs_source_get_width(source);
-		int height = obs_source_get_height(source);
+			int width = obs_source_get_width(source);
+			int height = obs_source_get_height(source);
 
-		resizeOutput->setEnabled(!obs_video_active());
+			resizeOutput->setEnabled(!obs_video_active());
 
-		if (width < 8 || height < 8)
-			resizeOutput->setEnabled(false);
+			if (width < 8 || height < 8)
+				resizeOutput->setEnabled(false);
 
-		scaleFilteringMenu = new QMenu(QTStr("ScaleFiltering"));
-		popup.addMenu(
-			AddScaleFilteringMenu(scaleFilteringMenu, sceneItem));
-		blendingModeMenu = new QMenu(QTStr("BlendingMode"));
-		popup.addMenu(AddBlendingModeMenu(blendingModeMenu, sceneItem));
-		blendingMethodMenu = new QMenu(QTStr("BlendingMethod"));
-		popup.addMenu(
-			AddBlendingMethodMenu(blendingMethodMenu, sceneItem));
-		if (isAsyncVideo) {
-			deinterlaceMenu = new QMenu(QTStr("Deinterlacing"));
+			scaleFilteringMenu = new QMenu(QTStr("ScaleFiltering"));
 			popup.addMenu(
-				AddDeinterlacingMenu(deinterlaceMenu, source));
+				AddScaleFilteringMenu(scaleFilteringMenu, sceneItem));
+			blendingModeMenu = new QMenu(QTStr("BlendingMode"));
+			popup.addMenu(AddBlendingModeMenu(blendingModeMenu, sceneItem));
+			blendingMethodMenu = new QMenu(QTStr("BlendingMethod"));
+			popup.addMenu(
+				AddBlendingMethodMenu(blendingMethodMenu, sceneItem));
+			if (isAsyncVideo) {
+				deinterlaceMenu = new QMenu(QTStr("Deinterlacing"));
+				popup.addMenu(
+					AddDeinterlacingMenu(deinterlaceMenu, source));
+			}
+			popup.addSeparator();
+
+			popup.addMenu(CreateVisibilityTransitionMenu(true));
+			popup.addMenu(CreateVisibilityTransitionMenu(false));
+			popup.addSeparator();
+
+			sourceProjector = new QMenu(QTStr("SourceProjector"));
+			AddProjectorMenuMonitors(sourceProjector, this,
+						 SLOT(OpenSourceProjector()));
+			popup.addMenu(sourceProjector);
+			popup.addAction(QTStr("SourceWindow"), this,
+					SLOT(OpenSourceWindow()));
+			popup.addAction(QTStr("Screenshot.Source"), this,
+					SLOT(ScreenshotSelectedSource()));
 		}
-		popup.addSeparator();
 
-		popup.addMenu(CreateVisibilityTransitionMenu(true));
-		popup.addMenu(CreateVisibilityTransitionMenu(false));
-		popup.addSeparator();
-
-		sourceProjector = new QMenu(QTStr("SourceProjector"));
-		AddProjectorMenuMonitors(sourceProjector, this,
-					 SLOT(OpenSourceProjector()));
-		popup.addMenu(sourceProjector);
-		popup.addAction(QTStr("SourceWindow"), this,
-				SLOT(OpenSourceWindow()));
-		popup.addAction(QTStr("Screenshot.Source"), this,
-				SLOT(ScreenshotSelectedSource()));
 		popup.addSeparator();
 
 		if (flags & OBS_SOURCE_INTERACTION)
@@ -7173,7 +7179,7 @@ void OBSBasic::AutoRemux(QString input, bool no_show)
 	output.resize(output.size() - suffix.size());
 
 	const obs_encoder_t *videoEncoder =
-		obs_output_get_video_encoder(outputHandler->fileOutput);
+		obs_output_get_video_encoder(outputHandler->fileOutput[0]); // HACK!!!
 	const char *codecName = obs_encoder_get_codec(videoEncoder);
 
 	if (strcmp(codecName, "prores") == 0) {
@@ -7240,7 +7246,7 @@ void OBSBasic::StopRecording()
 
 void OBSBasic::RecordingStart()
 {
-	ui->statusbar->RecordingStarted(outputHandler->fileOutput);
+	ui->statusbar->RecordingStarted(outputHandler->fileOutput[0]); // HACK!!!
 	ui->recordButton->setText(QTStr("Basic.Main.StopRecording"));
 	ui->recordButton->setChecked(true);
 
@@ -9904,11 +9910,11 @@ void OBSBasic::UpdatePatronJson(const QString &text, const QString &error)
 
 void OBSBasic::PauseRecording()
 {
-	if (!pause || !outputHandler || !outputHandler->fileOutput ||
+	if (!pause || !outputHandler || !outputHandler->fileOutput[0] || // HACK!!!
 	    os_atomic_load_bool(&recording_paused))
 		return;
 
-	obs_output_t *output = outputHandler->fileOutput;
+	obs_output_t *output = outputHandler->fileOutput[0]; // HACK!!!
 
 	if (obs_output_pause(output, true)) {
 		pause->setAccessibleName(QTStr("Basic.Main.UnpauseRecording"));
@@ -9950,11 +9956,11 @@ void OBSBasic::PauseRecording()
 
 void OBSBasic::UnpauseRecording()
 {
-	if (!pause || !outputHandler || !outputHandler->fileOutput ||
+	if (!pause || !outputHandler || !outputHandler->fileOutput[0] || // HACK!!!
 	    !os_atomic_load_bool(&recording_paused))
 		return;
 
-	obs_output_t *output = outputHandler->fileOutput;
+	obs_output_t *output = outputHandler->fileOutput[0]; // HACK!!!
 
 	if (obs_output_pause(output, false)) {
 		pause->setAccessibleName(QTStr("Basic.Main.PauseRecording"));
@@ -9993,10 +9999,10 @@ void OBSBasic::UnpauseRecording()
 
 void OBSBasic::PauseToggled()
 {
-	if (!pause || !outputHandler || !outputHandler->fileOutput)
+	if (!pause || !outputHandler || !outputHandler->fileOutput[0]) // HACK!!!
 		return;
 
-	obs_output_t *output = outputHandler->fileOutput;
+	obs_output_t *output = outputHandler->fileOutput[0]; // HACK!!!
 	bool enable = !obs_output_paused(output);
 
 	if (enable)
