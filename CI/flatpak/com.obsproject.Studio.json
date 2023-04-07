@@ -312,9 +312,9 @@
         {
           "type": "git",
           "dest": "obs-deps",
-          "url": "https://github.com/obsproject/obs-deps.git",
-          "tag": "2023-04-12",
-          "commit": "24e25fd83e6938cfe3cc5020230430b31ba5df59"
+          "url": "https://github.com/DDRBoxman/obs-deps.git",
+          "tag": "2023-04-07",
+          "commit": "281dbe6054a0f3e9004d81a74a37e76f06fa3d7a"
         },
         {
           "type": "shell",
