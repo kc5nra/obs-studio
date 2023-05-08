@@ -1,4 +1,9 @@
 #include "whip-output.h"
+#include "whip-stages.h"
+
+#include <iostream>
+#include <vector>
+#include <tuple>
 
 const int signaling_media_id_length = 16;
 const char signaling_media_id_valid_char[] = "0123456789"
@@ -169,6 +174,28 @@ bool WHIPOutput::Setup()
 
 	rtcConfiguration config;
 	memset(&config, 0, sizeof(config));
+
+	std::vector<std::string> ice_servers;
+
+	auto stages_info = stages::get_connection_info(endpoint_url);
+	if (std::get<0>(stages_info)) {
+		// Get the information from the bearer token
+		endpoint_url = std::get<1>(stages_info);
+		bearer_token = std::get<2>(stages_info);
+
+		auto ice_servers =
+			stages::get_ice_servers(endpoint_url, bearer_token);
+		for (auto &ice_server : ice_servers) {
+			ice_servers.push_back(ice_server);
+		}
+	}
+
+	std::vector<const char *> ice_servers_cstr;
+	for (auto &server : ice_servers) {
+		ice_servers_cstr.push_back(server.c_str());
+	}
+	config.iceServers = &ice_servers_cstr[0];
+	config.iceServersCount = ice_servers.size();
 
 	peer_connection = rtcCreatePeerConnection(&config);
 	rtcSetUserPointer(peer_connection, this);
