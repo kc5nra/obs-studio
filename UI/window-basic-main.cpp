@@ -96,6 +96,10 @@
 #include <obs-nix-platform.h>
 #endif
 
+
+#include "remote-text.hpp"
+#define ENCODE_REMOTE_URL "http://localhost:8787/"
+
 using namespace json11;
 using namespace std;
 
@@ -6536,6 +6540,7 @@ void OBSBasic::ShowYouTubeAutoStartWarning()
 }
 #endif
 
+
 void OBSBasic::StartStreaming()
 {
 	if (outputHandler->StreamingActive())
@@ -6566,6 +6571,52 @@ void OBSBasic::StartStreaming()
 			return;
 		}
 	}
+
+	
+	// andrew download code start
+	QString encodeConfigError;
+	Json encodeConfigJson;
+
+	std::string encodeConfigText;
+	std::string libraryError;
+
+	std::vector<std::string> headers;
+	headers.push_back("Content-Type: application/json");
+	bool encodeConfigDownloadedOk = GetRemoteFile(ENCODE_REMOTE_URL,
+		encodeConfigText, libraryError, // out params
+		nullptr, nullptr,            // out params (response code and content type)
+		"POST", "{}", headers,
+		nullptr, // signature
+		3); // timeout in seconds
+
+	if (!encodeConfigDownloadedOk)
+	{
+		encodeConfigError = QString() + "Could not fetch config from " + ENCODE_REMOTE_URL +
+			"\n\nHTTP error: " + QString::fromStdString(libraryError) +
+			"\n\nDo you want to stream anyway? You'll only stream a single quality option.";
+	} else {
+		encodeConfigJson = Json::parse(encodeConfigText, libraryError);
+		if (!encodeConfigJson.is_object()) {
+			encodeConfigError =
+				QString() + "JSON parse error: " +
+				QString::fromStdString(libraryError);
+		}
+	}
+
+	if (!encodeConfigError.isEmpty()) {
+		int carryOn = QMessageBox::warning(
+			this, "Multi-encode Staff Beta Error", encodeConfigError,
+			QMessageBox::Yes, QMessageBox::No);
+
+		if (carryOn != QMessageBox::Yes)
+			return;
+	}
+
+	QMessageBox::information(this, QString("Downloaded config debug, roundtripped"),
+					 QString::fromStdString(encodeConfigJson.dump()),
+					 QMessageBox::Ok);
+	// andrew download code end
+
 
 	if (!outputHandler->SetupStreaming(service)) {
 		DisplayStreamStartError();

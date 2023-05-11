@@ -1,0 +1,40 @@
+{
+   "encoder_configurations": [
+      {
+         "type": "NVENC_H264",
+         "source": true,
+         "width": 1920,
+         "height": 1080,
+         "framerate": [30, 1],
+         "bitrate": 5000,
+         "keyframe_interval": 2,
+         "rate_control": "CBR",
+         "profile": "HIGH",
+         "bframes": 2
+      },
+      {
+         "type": "NVENC_H264",
+         "source": false,
+         "width": 1280,
+         "height": 720,
+         "framerate": [30, 1],
+         "bitrate": 3000,
+         "keyframe_interval": 2,
+         "rate_control": "CBR",
+         "profile": "HIGH",
+         "bframes": 2
+      },
+      {
+         "type": "NVENC_H264",
+         "source": false,
+         "width": 640,
+         "height": 360,
+         "framerate": [30, 1],
+         "bitrate": 1200,
+         "keyframe_interval": 2,
+         "rate_control": "CBR",
+         "profile": "HIGH",
+         "bframes": 2
+      }
+   ]
+}
