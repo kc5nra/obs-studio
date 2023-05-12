@@ -507,6 +507,8 @@ OBSBasicSettings::OBSBasicSettings(QWidget *parent)
 	HookWidget(ui->advReplayBuf,         CHECK_CHANGED,  OUTPUTS_CHANGED);
 	HookWidget(ui->advRBSecMax,          SCROLL_CHANGED, OUTPUTS_CHANGED);
 	HookWidget(ui->advRBMegsMax,         SCROLL_CHANGED, OUTPUTS_CHANGED);
+	HookWidget(ui->advOutFLVRecPath,     EDIT_CHANGED,   OUTPUTS_CHANGED);
+	HookWidget(ui->advOutFLVNoSpace,     CHECK_CHANGED,  OUTPUTS_CHANGED);
 	HookWidget(ui->channelSetup,         COMBO_CHANGED,  AUDIO_RESTART);
 	HookWidget(ui->sampleRate,           COMBO_CHANGED,  AUDIO_RESTART);
 	HookWidget(ui->meterDecayRate,       COMBO_CHANGED,  AUDIO_CHANGED);
@@ -2035,7 +2037,7 @@ void OBSBasicSettings::LoadAdvOutputRecordingSettings()
 	int splitFileSize =
 		config_get_int(main->Config(), "AdvOut", "RecSplitFileSize");
 
-	int typeIndex = (astrcmpi(type, "FFmpeg") == 0) ? 1 : 0;
+	int typeIndex = (astrcmpi(type, "FFmpeg") == 0) ? 1 : ((astrcmpi(type, "FLV") == 0) ? 2 : 0);
 	ui->advOutRecType->setCurrentIndex(typeIndex);
 	ui->advOutRecPath->setText(path);
 	ui->advOutNoSpace->setChecked(noSpace);
@@ -2211,6 +2213,17 @@ void OBSBasicSettings::LoadAdvOutputFFmpegSettings()
 	ui->advOutFFTrack4->setChecked(audioMixes & (1 << 3));
 	ui->advOutFFTrack5->setChecked(audioMixes & (1 << 4));
 	ui->advOutFFTrack6->setChecked(audioMixes & (1 << 5));
+}
+
+void OBSBasicSettings::LoadAdvOutputFLVSettings()
+{
+	const char *recPath =
+		config_get_string(main->Config(), "AdvOut", "FLVRecFilePath");
+	const bool noSpace = config_get_bool(main->Config(), "AdvOut",
+					     "FLVRecFileNameWithoutSpace");
+
+	ui->advOutFLVRecPath->setText(recPath);
+	ui->advOutFLVNoSpace->setChecked(noSpace);
 }
 
 void OBSBasicSettings::LoadAdvOutputAudioSettings()
@@ -3494,6 +3507,8 @@ static inline const char *RecTypeFromIdx(int idx)
 {
 	if (idx == 1)
 		return "FFmpeg";
+	else if (idx == 2)
+		return "FLV";
 	else
 		return "Standard";
 }
@@ -3722,6 +3737,9 @@ void OBSBasicSettings::SaveOutputSettings()
 	SaveEdit(ui->advOutTrack4Name, "AdvOut", "Track4Name");
 	SaveEdit(ui->advOutTrack5Name, "AdvOut", "Track5Name");
 	SaveEdit(ui->advOutTrack6Name, "AdvOut", "Track6Name");
+
+	SaveEdit(ui->advOutFLVRecPath, "AdvOut", "FLVRecFilePath");
+	SaveCheckBox(ui->advOutFLVNoSpace, "AdvOut", "FLVRecFileNameWithoutSpace"); 
 
 	if (vodTrackCheckbox) {
 		SaveCheckBox(simpleVodTrack, "SimpleOutput", "VodTrackEnabled");
@@ -4062,6 +4080,17 @@ void OBSBasicSettings::on_advOutRecPathBrowse_clicked()
 		return;
 
 	ui->advOutRecPath->setText(dir);
+}
+
+void OBSBasicSettings::on_advOutFLVRecPathBrowse_clicked()
+{
+	QString dir = SelectDirectory(
+		this, QTStr("Basic.Settings.Output.SelectDirectory"),
+		ui->advOutFLVRecPath->text());
+	if (dir.isEmpty())
+		return;
+
+	ui->advOutFLVRecPath->setText(dir);
 }
 
 void OBSBasicSettings::on_advOutFFPathBrowse_clicked()
