@@ -137,7 +137,7 @@
      <item>
       <widget class="QStackedWidget" name="settingsPages">
        <property name="currentIndex">
-        <number>2</number>
+        <number>0</number>
        </property>
        <widget class="QWidget" name="generalPage">
         <layout class="QVBoxLayout" name="verticalLayout_18">
@@ -1539,7 +1539,7 @@
             <item>
              <widget class="QStackedWidget" name="outputModePages">
               <property name="currentIndex">
-               <number>1</number>
+               <number>0</number>
               </property>
               <widget class="QWidget" name="easyOutputsPage">
                <layout class="QVBoxLayout" name="verticalLayout_3">
