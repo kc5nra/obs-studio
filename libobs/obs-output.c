@@ -1797,6 +1797,16 @@ static inline void insert_interleaved_packet(struct obs_output *output,
 		struct encoder_packet *cur_packet;
 		cur_packet = output->interleaved_packets.array + idx;
 
+		// sort simulcast video packets with same DTS by track index,
+		// by track index, to prevent the pruning logic from removing
+		// additional video tracks
+		// (it currently only looks at the first track)
+		if (out->dts_usec == cur_packet->dts_usec &&
+		    out->type == OBS_ENCODER_VIDEO &&
+		    cur_packet->type == OBS_ENCODER_VIDEO &&
+		    out->track_idx > cur_packet->track_idx)
+			continue;
+
 		if (out->dts_usec == cur_packet->dts_usec &&
 		    out->type == OBS_ENCODER_VIDEO) {
 			break;
