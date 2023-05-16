@@ -1380,6 +1380,7 @@ AdvancedOutput::AdvancedOutput(OBSBasic *main_) : BasicOutputHandler(main_)
 	obs_data_set_string(streamEncSettings2, "profile", "main");
 	obs_data_set_bool(streamEncSettings2, "lookahead", false);
 	obs_data_set_int(streamEncSettings2, "bf", 2);
+	obs_data_set_int(streamEncSettings2, "keyint_sec", 2);
 	videoStreaming[1] = obs_video_encoder_create(streamEncoder,
 						     "advanced_video_stream2",
 						     streamEncSettings2,
@@ -1395,6 +1396,7 @@ AdvancedOutput::AdvancedOutput(OBSBasic *main_) : BasicOutputHandler(main_)
 	obs_data_set_string(streamEncSettings3, "profile", "main");
 	obs_data_set_bool(streamEncSettings3, "lookahead", false);
 	obs_data_set_int(streamEncSettings3, "bf", 2);
+	obs_data_set_int(streamEncSettings3, "keyint_sec", 2);
 	videoStreaming[2] = obs_video_encoder_create(streamEncoder,
 						     "advanced_video_stream3",
 						     streamEncSettings3,
