@@ -1712,16 +1712,6 @@ inline void AdvancedOutput::SetupFFmpeg()
 
 inline void AdvancedOutput::SetupFLV()
 {
-	const char *recPath =
-		config_get_string(main->Config(), "AdvOut", "FLVRecFilePath");
-	const bool noSpace = config_get_bool(main->Config(), "AdvOut",
-					     "FLVRecFileNameWithoutSpace");
-
-	OBSDataAutoRelease settings = obs_data_create();
-	obs_data_set_string(settings, "path", recPath);
-	obs_output_update(fileOutput[0], settings);
-
-
 	for (size_t i = 0; i < 3; i++)
 		obs_output_set_video_encoder2(fileOutput[0], videoStreaming[i],
 					      i);
@@ -2143,6 +2133,22 @@ bool AdvancedOutput::StartRecording()
 
 			obs_output_update(fileOutput[i], settings);
 		}
+	} else if (flvOutput) {
+		path = config_get_string(
+			main->Config(), "AdvOut", "FLVRecFilePath");
+		noSpace = config_get_bool(
+			main->Config(), "AdvOut", "FLVRecFileNameWithoutSpace");
+		filenameFormat = config_get_string(main->Config(), "Output",
+						   "FilenameFormatting");
+		overwriteIfExists = config_get_bool(main->Config(), "Output",
+						    "OverwriteIfExists");
+
+		auto recordingFilename = GetRecordingFilename(
+			path, "flv", noSpace, overwriteIfExists, filenameFormat, false);
+
+		OBSDataAutoRelease settings = obs_data_create();
+		obs_data_set_string(settings, "path", recordingFilename.c_str());
+		obs_output_update(fileOutput[0], settings);
 	}
 
 	for (int i = 0; i < (flvOutput ? 1 : 3); i++) {
