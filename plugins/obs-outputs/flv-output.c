@@ -169,7 +169,7 @@ static bool write_video_header(struct flv_output *stream, size_t idx)
 	if (!vencoder)
 		return false;
 
-	if (!obs_encoder_get_extra_data(vencoder, &header, &size)) {
+	if (obs_encoder_get_extra_data(vencoder, &header, &size)) {
 		packet.size = obs_parse_avc_header(&packet.data, header, size);
 		write_packet(stream, &packet, true, idx);
 		bfree(packet.data);
