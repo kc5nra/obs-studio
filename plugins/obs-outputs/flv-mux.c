@@ -131,8 +131,11 @@ static void build_flv_meta_data(obs_output_t *context, uint8_t **output,
 static void write_previous_tag_size_without_header(struct serializer* s, uint32_t header_size)
 {
 	assert(serializer_get_pos(s) >= header_size);
-	/* write tag size (starting byte doesn't count) */
-	s_wb32(s, (uint32_t)serializer_get_pos(s) - header_size - 1);
+	assert(serializer_get_pos(s) >= 11);
+	// From FLV file format specification version 10:
+	// Size of previous [current] tag, including its header.
+	// For FLV version 1 this value is 11 plus the DataSize of the previous [current] tag.
+	s_wb32(s, (uint32_t)serializer_get_pos(s) - header_size);
 }
 
 static void write_previous_tag_size(struct serializer *s)
