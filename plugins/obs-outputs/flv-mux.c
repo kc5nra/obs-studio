@@ -456,7 +456,7 @@ void flv_additional_meta_data(obs_output_t *context,
 	s_write(&s, meta_data, meta_data_size);
 	bfree(meta_data);
 
-	s_wb32(&s, (uint32_t)serializer_get_pos(&s) - 1);
+	s_wb32(&s, (uint32_t)serializer_get_pos(&s));
 
 	*data = out.bytes.array;
 	*size = out.bytes.num;
