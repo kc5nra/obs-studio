@@ -1,4 +1,19 @@
 {
+   "meta" : {
+	   "schema_version": "2023-05-10",
+	   "service": "ivs",
+	   "service_id": "f1305a5e-f2a2-11ed-a05b-0242ac120003"
+   },
+   "ingest_endpoints": [
+      {
+         "protocol": "RTMP",
+         "url_template": "rtmp://sjc05.contribute.live-video.net/app/{stream_key}"
+      },
+      {
+         "protocol": "RTMPS",
+         "url_template": "rtmps://sjc05.contribute.live-video.net/app/{stream_key}"
+      }
+   ],
    "encoder_configurations": [
       {
          "type": "NVENC_H264",
