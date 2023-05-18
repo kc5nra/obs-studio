@@ -6576,6 +6576,7 @@ void OBSBasic::StartStreaming()
 	// andrew download code start
 	QString encodeConfigError;
 	Json encodeConfigJson;
+	OBSData encodeConfigObsData;
 
 	std::string encodeConfigText;
 	std::string libraryError;
@@ -6601,6 +6602,9 @@ void OBSBasic::StartStreaming()
 				QString() + "JSON parse error: " +
 				QString::fromStdString(libraryError);
 		}
+
+		encodeConfigObsData =
+			obs_data_create_from_json(encodeConfigText.c_str());
 	}
 
 	if (!encodeConfigError.isEmpty()) {
@@ -6612,9 +6616,13 @@ void OBSBasic::StartStreaming()
 			return;
 	}
 
-	QMessageBox::information(this, QString("Downloaded config debug, roundtripped"),
+	QMessageBox::information(this, QString("Downloaded config debug, json11 roundtrip"),
 					 QString::fromStdString(encodeConfigJson.dump()),
 					 QMessageBox::Ok);
+
+	QMessageBox::information(this, QString("Download config debug, OBSData roundtrip"),
+		QString(obs_data_get_json(encodeConfigObsData)),
+		QMessageBox::Ok);
 	// andrew download code end
 
 
