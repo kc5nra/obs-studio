@@ -36,11 +36,13 @@ struct BasicOutputHandler {
 	OBSSignal replayBufferStopping;
 	OBSSignal replayBufferSaved;
 
+	OBSData liveConfigData;
+
 	inline BasicOutputHandler(OBSBasic *main_);
 
 	virtual ~BasicOutputHandler(){};
 
-	virtual bool SetupStreaming(obs_service_t *service) = 0;
+	virtual bool SetupStreaming(obs_service_t *service, OBSData goLiveConfigData) = 0;
 	virtual bool StartStreaming(obs_service_t *service) = 0;
 	virtual bool StartRecording() = 0;
 	virtual bool StartReplayBuffer() { return false; }

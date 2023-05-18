@@ -314,7 +314,7 @@ struct SimpleOutput : BasicOutputHandler {
 
 	void SetupVodTrack(obs_service_t *service);
 
-	virtual bool SetupStreaming(obs_service_t *service) override;
+	virtual bool SetupStreaming(obs_service_t *service, OBSData goLiveConfigData) override;
 	virtual bool StartStreaming(obs_service_t *service) override;
 	virtual bool StartRecording() override;
 	virtual bool StartReplayBuffer() override;
@@ -817,10 +817,17 @@ const char *FindAudioEncoderFromCodec(const char *type)
 	return nullptr;
 }
 
-bool SimpleOutput::SetupStreaming(obs_service_t *service)
+bool SimpleOutput::SetupStreaming(obs_service_t *service, OBSData goLiveConfigData)
 {
 	if (!Active())
 		SetupOutputs();
+
+	if (goLiveConfigData.Get()) {
+		// XXX how to notify user?
+		blog(LOG_WARNING,
+		     "Aborted SimpleOutput start because live config data is present");
+		return false;
+	}
 
 	Auth *auth = main->GetAuth();
 	if (auth)
@@ -1217,7 +1224,7 @@ struct AdvancedOutput : BasicOutputHandler {
 	void SetupOutputs() override;
 	int GetAudioBitrate(size_t i) const;
 
-	virtual bool SetupStreaming(obs_service_t *service) override;
+	virtual bool SetupStreaming(obs_service_t *service, OBSData goLiveConfigData) override;
 	virtual bool StartStreaming(obs_service_t *service) override;
 	virtual bool StartRecording() override;
 	virtual bool StartReplayBuffer() override;
@@ -1365,37 +1372,6 @@ AdvancedOutput::AdvancedOutput(OBSBasic *main_) : BasicOutputHandler(main_)
 		      "(advanced output)";
 	obs_encoder_release(videoStreaming[0]);
 
-	// HACK!!! Create additional video encoders
-	OBSData streamEncSettings2 = GetDataFromJsonFile("streamEncoder.json");
-	obs_data_set_int(streamEncSettings2, "bitrate", 3100);
-	obs_data_set_string(streamEncSettings2, "preset", "ll"); // "llhq"
-	obs_data_set_string(streamEncSettings2, "profile", "main");
-	obs_data_set_bool(streamEncSettings2, "lookahead", false);
-	obs_data_set_int(streamEncSettings2, "bf", 2);
-	videoStreaming[1] = obs_video_encoder_create(streamEncoder,
-						     "advanced_video_stream2",
-						     streamEncSettings2,
-						     nullptr);
-	if (!videoStreaming[1])
-		throw "Failed to create streaming video encoder 2 "
-		      "(advanced output)";
-	obs_encoder_release(videoStreaming[1]);
-
-	OBSData streamEncSettings3 = GetDataFromJsonFile("streamEncoder.json");
-	obs_data_set_int(streamEncSettings3, "bitrate", 2100);
-	obs_data_set_string(streamEncSettings3, "preset", "ll"); // "llhq"
-	obs_data_set_string(streamEncSettings3, "profile", "main");
-	obs_data_set_bool(streamEncSettings3, "lookahead", false);
-	obs_data_set_int(streamEncSettings3, "bf", 2);
-	videoStreaming[2] = obs_video_encoder_create(streamEncoder,
-						     "advanced_video_stream3",
-						     streamEncSettings3,
-						     nullptr);
-	if (!videoStreaming[2])
-		throw "Failed to create streaming video encoder 3 "
-		      "(advanced output)";
-	obs_encoder_release(videoStreaming[2]);
-
 	const char *rate_control = obs_data_get_string(
 		useStreamEncoder ? streamEncSettings : recordEncSettings,
 		"rate_control");
@@ -1444,7 +1420,7 @@ AdvancedOutput::AdvancedOutput(OBSBasic *main_) : BasicOutputHandler(main_)
 void AdvancedOutput::UpdateStreamSettings()
 {
 	bool applyServiceSettings = config_get_bool(main->Config(), "AdvOut",
-						    "ApplyServiceSettings");
+						    "ApplyServiceSettings");  // XXX what is this??? - Andrew
 	bool enforceBitrate = !config_get_bool(main->Config(), "Stream1",
 					       "IgnoreRecommended");
 	bool dynBitrate =
@@ -1472,6 +1448,33 @@ void AdvancedOutput::UpdateStreamSettings()
 	if (dynBitrate && astrcmpi(streamEncoder, "jim_nvenc") == 0)
 		obs_data_set_bool(settings, "lookahead", false);
 
+	// HACK!! lazily create, then update, additional video encoders
+	for (int i = 1;
+	     i < sizeof(videoStreaming) / sizeof(*videoStreaming);
+	     i++)
+	{
+		char name[80];
+		sprintf(name, "advanced_video_stream%0d", i+1);
+		if (i > 2)
+			continue;
+		OBSData streamEncSettings2 =
+			GetDataFromJsonFile("streamEncoder.json");
+		obs_data_set_int(streamEncSettings2, "bitrate", i == 1 ? 3100 : 2100);
+		obs_data_set_string(streamEncSettings2, "preset",
+				    "ll"); // "llhq"
+		obs_data_set_string(streamEncSettings2, "profile", "main");
+		obs_data_set_bool(streamEncSettings2, "lookahead", false);
+		obs_data_set_int(streamEncSettings2, "bf", 2);
+		videoStreaming[i] = obs_video_encoder_create(
+			streamEncoder, name,
+			streamEncSettings2, nullptr);
+		if (!videoStreaming[i])
+			throw "Failed to create streaming video encoder N "
+			      "(advanced output)"; // XXX does this work? and doesn't string interpolate index
+		obs_encoder_release(videoStreaming[i]);
+	}
+
+
 	video_t *video = obs_get_video();
 	enum video_format format = video_output_get_format(video);
 
@@ -1482,9 +1485,9 @@ void AdvancedOutput::UpdateStreamSettings()
 	case VIDEO_FORMAT_P010:
 		break;
 	default:
-		obs_encoder_set_preferred_video_format(videoStreaming[0], VIDEO_FORMAT_NV12);
-		obs_encoder_set_preferred_video_format(videoStreaming[1], VIDEO_FORMAT_NV12);
-		obs_encoder_set_preferred_video_format(videoStreaming[2], VIDEO_FORMAT_NV12);
+		for (auto vs : videoStreaming)
+			if (vs)
+				obs_encoder_set_preferred_video_format(vs, VIDEO_FORMAT_NV12);
 	}
 
 	// TODO: Update multi video encoders ???
@@ -1853,7 +1856,7 @@ void AdvancedOutput::SetupMultiVideo(obs_service_t* service, int index)
 	}
 }
 
-bool AdvancedOutput::SetupStreaming(obs_service_t *service)
+bool AdvancedOutput::SetupStreaming(obs_service_t *service, OBSData goLiveConfigData)
 {
 	int streamTrack =
 		config_get_int(main->Config(), "AdvOut", "TrackIndex");
@@ -1954,6 +1957,11 @@ bool AdvancedOutput::SetupStreaming(obs_service_t *service)
 
 		outputType = type;
 	}
+
+	// lazily create any video encoders which didn't exist yet
+	blog(LOG_DEBUG, "supplied json live config data: %s",
+	     obs_data_get_json(goLiveConfigData));
+
 
 	obs_output_set_video_encoder2(streamOutput, videoStreaming[0], 0);
 	obs_output_set_audio_encoder(streamOutput, streamAudioEnc, 0);

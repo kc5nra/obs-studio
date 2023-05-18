@@ -6626,7 +6626,7 @@ void OBSBasic::StartStreaming()
 	// andrew download code end
 
 
-	if (!outputHandler->SetupStreaming(service)) {
+	if (!outputHandler->SetupStreaming(service, encodeConfigObsData)) {
 		DisplayStreamStartError();
 		return;
 	}
