@@ -30,8 +30,8 @@
 		{
 			"XXXtype": "NVENC_H264",
 			"XXXsource": false,
-			"XXXwidth": 1280,
-			"XXXheight": 720,
+			"width": 1280,
+			"height": 720,
 			"XXXframerate": [ 30, 1 ],
 			"bitrate": 3100,
 			"preset": "ll",
@@ -44,8 +44,8 @@
 		{
 			"XXXtype": "NVENC_H264",
 			"XXXsource": false,
-			"XXXwidth": 640,
-			"XXXheight": 360,
+			"width": 640,
+			"height": 360,
 			"XXXframerate": [ 30, 1 ],
 			"bitrate": 2100,
 			"preset": "ll",

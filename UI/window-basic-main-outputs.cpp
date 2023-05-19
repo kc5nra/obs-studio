@@ -20,8 +20,6 @@ volatile bool virtualcam_active = false;
 #define FTL_PROTOCOL "ftl"
 #define RTMP_PROTOCOL "rtmp"
 
-#define MAX_VIDEO_ENCODERS 3
-
 static void OBSStreamStarting(void *data, calldata_t *params)
 {
 	BasicOutputHandler *output = static_cast<BasicOutputHandler *>(data);
@@ -1196,7 +1194,7 @@ struct AdvancedOutput : BasicOutputHandler {
 	OBSEncoder streamAudioEnc;
 	OBSEncoder streamArchiveEnc;
 	OBSEncoder aacTrack[MAX_AUDIO_MIXES];
-	OBSEncoder videoStreaming[MAX_VIDEO_ENCODERS];
+	OBSEncoder videoStreaming[MAX_OUTPUT_VIDEO_ENCODERS];
 	OBSEncoder videoRecording;
 
 	bool ffmpegOutput;
@@ -1361,7 +1359,6 @@ AdvancedOutput::AdvancedOutput(OBSBasic *main_) : BasicOutputHandler(main_)
 			obs_encoder_release(videoRecording);
 		}
 	}
-	OBSDataAutoRelease data = obs_data_create();
 	OBSDataArrayAutoRelease goLiveEncodings = obs_data_get_array(
 		main->goLiveConfigData, "encoder_configurations");
 
@@ -1380,8 +1377,7 @@ AdvancedOutput::AdvancedOutput(OBSBasic *main_) : BasicOutputHandler(main_)
 	for (int i = 0; i < obs_data_array_count(goLiveEncodings); ++i) {
 		if (ignoreFirstServerEncoding && i == 0)
 			continue;
-		if (i > MAX_OUTPUT_VIDEO_ENCODERS ||
-		    i >= MAX_VIDEO_ENCODERS) // XXX delete mine
+		if (i > MAX_OUTPUT_VIDEO_ENCODERS)
 			throw "Service-provided Go Live Config has too many video encodings";
 
 		OBSDataAutoRelease goLiveSettings =
@@ -1410,6 +1406,14 @@ AdvancedOutput::AdvancedOutput(OBSBasic *main_) : BasicOutputHandler(main_)
 		obs_encoder_release(videoStreaming[i]);
 	}
 
+	/*for(int i = 0; i < MAX_OUTPUT_VIDEO_ENCODERS; ++i)
+	{
+		char x[100];
+		sprintf(x, "videoStreaming[%0d] = %p", i,
+			videoStreaming[i].Get());
+		QMessageBox::information(main, "ptr", QString(x),
+					 QMessageBox::Ok);
+	}	*/
 
 	const char *rate_control = obs_data_get_string(
 		useStreamEncoder ? streamEncSettings : recordEncSettings,
@@ -1548,22 +1552,46 @@ inline void AdvancedOutput::SetupStreaming()
 	}
 
 	obs_output_set_audio_encoder(streamOutput, streamAudioEnc, 0);
-	obs_encoder_set_scaled_size(videoStreaming[0], cx, cy);
+
 
 	// HACK!!! Setup multiple video encoders
-	obs_encoder_set_scaled_size(videoStreaming[1], 1280, 720);
-	obs_encoder_set_video(videoStreaming[1], obs_get_video());
-	obs_encoder_set_scaled_size(videoStreaming[2], 852, 480);
-	obs_encoder_set_video(videoStreaming[2], obs_get_video());
+	OBSDataArrayAutoRelease goLiveEncodings = obs_data_get_array(
+			main->goLiveConfigData, "encoder_configurations");
+
+	for (int i = 0; i < MAX_OUTPUT_VIDEO_ENCODERS; ++i) {
+		if (videoStreaming[i]) {
+			OBSDataAutoRelease goLiveSettings =
+					obs_data_array_item(goLiveEncodings, i);
+			unsigned int newcx = obs_data_get_int(goLiveSettings, "width");
+			unsigned int newcy = obs_data_get_int(goLiveSettings, "height");
+
+			// XXX what we actually want is
+			//    if(originalCanvasWidth == newcx && originalCanvasHeight == newcy)
+			//        obs_encoder_set_scaled_size(vs, 0, 0);
+			if (i == 0 && cx == 0 && cy == 0) {
+				newcx = newcy = 0;
+			}
+
+			obs_encoder_set_scaled_size(videoStreaming[i],
+				newcx ? newcx : cx,
+				newcy ? newcy : cy);
+			if (i != 0) {
+				obs_encoder_set_video(videoStreaming[1],
+						      obs_get_video());
+
+			}
+		}
+	}
+
 
 	const char *id = obs_service_get_id(main->GetService());
 	if (strcmp(id, "rtmp_custom") == 0) {
 		OBSDataAutoRelease settings = obs_data_create();
 		obs_service_apply_encoder_settings(main->GetService(), settings,
 						   nullptr);
-		obs_encoder_update(videoStreaming[0], settings);
-		obs_encoder_update(videoStreaming[1], settings);
-		obs_encoder_update(videoStreaming[2], settings);
+		for (auto &vs : videoStreaming)
+			if (vs)
+				obs_encoder_update(vs, settings);
 	}
 }
 
