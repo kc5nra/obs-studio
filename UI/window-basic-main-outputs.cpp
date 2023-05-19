@@ -1296,6 +1296,7 @@ AdvancedOutput::AdvancedOutput(OBSBasic *main_) : BasicOutputHandler(main_)
 		config_get_bool(main->Config(), "AdvOut", "FFOutputToFile");
 	useStreamEncoder = astrcmpi(recordEncoder, "none") == 0;
 
+	OBSData streamEncSettings = GetDataFromJsonFile("streamEncoder.json");
 	OBSData recordEncSettings = GetDataFromJsonFile("recordEncoder.json");
 
 	if (ffmpegOutput) {
@@ -1360,27 +1361,44 @@ AdvancedOutput::AdvancedOutput(OBSBasic *main_) : BasicOutputHandler(main_)
 			obs_encoder_release(videoRecording);
 		}
 	}
+	OBSDataAutoRelease data = obs_data_create();
+	OBSDataArrayAutoRelease goLiveEncodings = obs_data_get_array(
+		main->goLiveConfigData, "encoder_configurations");
 
-	if (OBSDataArrayAutoRelease encodings = obs_data_get_array(
-		    main->goLiveConfigData, "encoder_configurations")) {
-		for (int i = 0; i < obs_data_array_count(encodings); ++i) {
-			OBSDataAutoRelease enc =
-				obs_data_array_item(encodings, i);
-			QMessageBox::information(
-				main, "xx",
-				QString(obs_data_get_json(enc)),
-				QMessageBox::Ok);
-		}
+	const bool ignoreFirstServerEncoding = true;
+	if (ignoreFirstServerEncoding || !goLiveEncodings)
+	{
+		videoStreaming[0] = obs_video_encoder_create(
+			streamEncoder, "advanced_video_stream1",
+			streamEncSettings, nullptr);
+		if (!videoStreaming[0])
+			throw "Failed to create streaming video encoder 1 "
+			      "(advanced output)";
+		obs_encoder_release(videoStreaming[0]);
 	}
 
-	OBSData streamEncSettings = GetDataFromJsonFile("streamEncoder.json");
-	videoStreaming[0] = obs_video_encoder_create(streamEncoder,
-						  "advanced_video_stream1",
-						  streamEncSettings, nullptr);
-	if (!videoStreaming[0])
-		throw "Failed to create streaming video encoder 1 "
-		      "(advanced output)";
-	obs_encoder_release(videoStreaming[0]);
+	for (int i = 0; i < obs_data_array_count(goLiveEncodings); ++i) {
+		if (ignoreFirstServerEncoding && i == 0)
+			continue;
+		if (i > MAX_OUTPUT_VIDEO_ENCODERS ||
+		    i >= MAX_VIDEO_ENCODERS) // XXX delete mine
+			throw "Service-provided Go Live Config has too many video encodings";
+
+		OBSDataAutoRelease goLiveSettings =
+			obs_data_array_item(goLiveEncodings, i);
+		OBSDataAutoRelease settings = obs_data_create();
+		obs_data_apply(settings, streamEncSettings);
+		obs_data_apply(settings, goLiveSettings);
+
+		QMessageBox::information(main, "xx",
+					 QString(obs_data_get_json(settings)),
+					 QMessageBox::Ok);
+		QMessageBox::information(
+			main, "ontopof",
+			QString(obs_data_get_json(streamEncSettings)),
+			QMessageBox::Ok);
+	}
+
 
 	// HACK!!! Create additional video encoders
 	OBSData streamEncSettings2 = GetDataFromJsonFile("streamEncoder.json");
@@ -1389,6 +1407,7 @@ AdvancedOutput::AdvancedOutput(OBSBasic *main_) : BasicOutputHandler(main_)
 	obs_data_set_string(streamEncSettings2, "profile", "main");
 	obs_data_set_bool(streamEncSettings2, "lookahead", false);
 	obs_data_set_int(streamEncSettings2, "bf", 2);
+	obs_data_set_int(streamEncSettings2, "keyInt_sec", 2);
 	videoStreaming[1] = obs_video_encoder_create(streamEncoder,
 						     "advanced_video_stream2",
 						     streamEncSettings2,
