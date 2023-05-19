@@ -5,7 +5,7 @@
 class OBSBasic;
 
 struct BasicOutputHandler {
-	OBSOutputAutoRelease fileOutput[3];
+	OBSOutputAutoRelease fileOutput[MAX_OUTPUT_VIDEO_ENCODERS];
 	OBSOutputAutoRelease streamOutput;
 	OBSOutputAutoRelease replayBuffer;
 	OBSOutputAutoRelease virtualCam;

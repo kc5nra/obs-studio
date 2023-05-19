@@ -1337,7 +1337,10 @@ AdvancedOutput::AdvancedOutput(OBSBasic *main_) : BasicOutputHandler(main_)
 						  OBSReplayBufferSaved, this);
 		}
 
-		for (int i = 0; i < 3; i++) {
+		for (int i = 0; i < MAX_OUTPUT_VIDEO_ENCODERS; i++) {
+			if (!videoStreaming[i])
+				continue;
+
 			char name[256];
 			sprintf(name, "adv_file_output_%d", i);
 
@@ -1630,8 +1633,9 @@ inline void AdvancedOutput::SetupRecording()
 						     videoStreaming[0]);
 
 		// HACK!!! Output multiple video encoders to separate file outputs
-		obs_output_set_video_encoder2(fileOutput[1], videoStreaming[1], 0);
-		obs_output_set_video_encoder2(fileOutput[2], videoStreaming[2], 0);
+		for (int i = 1; i < MAX_OUTPUT_VIDEO_ENCODERS; ++i)
+			if (fileOutput[i])
+				obs_output_set_video_encoder2(fileOutput[i], videoStreaming[i], 0);
 	} else {
 		if (rescale && rescaleRes && *rescaleRes) {
 			if (sscanf(rescaleRes, "%ux%u", &cx, &cy) != 2) {
@@ -1647,7 +1651,10 @@ inline void AdvancedOutput::SetupRecording()
 						     videoRecording);
 	}
 
-	for (int i = 0; i < 3; i++) {
+	for (int i = 0; i < MAX_OUTPUT_VIDEO_ENCODERS; i++) {
+		if (!fileOutput[i])
+			continue;
+
 		int idx = 0;
 
 		// HACK!!! Set audio track for all output renditions
@@ -2110,7 +2117,9 @@ bool AdvancedOutput::StartRecording()
 		splitFile = config_get_bool(main->Config(), "AdvOut",
 					    "RecSplitFile");
 
-		for (int i = 0; i < 3; i++) {
+		for (int i = 0; i < MAX_OUTPUT_VIDEO_ENCODERS; i++) {
+			if (!videoStreaming[i])
+				continue;
 
 			// HACK!!! Set file path names for each video rendition
 #if 0
@@ -2160,7 +2169,10 @@ bool AdvancedOutput::StartRecording()
 		}
 	}
 
-	for (int i = 0; i < 3; i++) {
+	for (int i = 0; i < MAX_OUTPUT_VIDEO_ENCODERS; i++) {
+		if (!videoStreaming[i])
+			continue;
+
 		// HACK!!! Start multiple video outputs
 		if (!obs_output_start(fileOutput[i])) {
 			QString error_reason;
@@ -2267,7 +2279,10 @@ void AdvancedOutput::StopStreaming(bool force)
 
 void AdvancedOutput::StopRecording(bool force)
 {
-	for (int i = 0; i < 3; i++) {
+	for (int i = 0; i < MAX_OUTPUT_VIDEO_ENCODERS; i++) {
+		if (!fileOutput[i])
+			continue;
+
 		if (force)
 			obs_output_force_stop(fileOutput[i]);
 		else
