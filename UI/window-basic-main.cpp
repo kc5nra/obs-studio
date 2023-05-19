@@ -6614,6 +6614,8 @@ void OBSBasic::StartStreaming()
 
 		if (carryOn != QMessageBox::Yes)
 			return;
+
+		encodeConfigObsData = nullptr;
 	}
 
 	QMessageBox::information(this, QString("Downloaded config debug, json11 roundtrip"),
@@ -6625,6 +6627,10 @@ void OBSBasic::StartStreaming()
 		QMessageBox::Ok);
 	// andrew download code end
 
+	if (encodeConfigObsData) {
+		this->goLiveConfigData = encodeConfigObsData;
+		this->ResetOutputs();
+	}
 
 	if (!outputHandler->SetupStreaming(service)) {
 		DisplayStreamStartError();

@@ -267,6 +267,10 @@ private:
 
 	os_cpu_usage_info_t *cpuUsageInfo = nullptr;
 
+public:
+	OBSData goLiveConfigData;
+
+private:
 	OBSService service;
 	std::unique_ptr<BasicOutputHandler> outputHandler;
 	bool streamingStopping = false;

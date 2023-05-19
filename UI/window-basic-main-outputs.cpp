@@ -20,6 +20,8 @@ volatile bool virtualcam_active = false;
 #define FTL_PROTOCOL "ftl"
 #define RTMP_PROTOCOL "rtmp"
 
+#define MAX_VIDEO_ENCODERS 3
+
 static void OBSStreamStarting(void *data, calldata_t *params)
 {
 	BasicOutputHandler *output = static_cast<BasicOutputHandler *>(data);
@@ -449,6 +451,9 @@ SimpleOutput::SimpleOutput(OBSBasic *main_) : BasicOutputHandler(main_)
 						"StreamEncoder");
 
 	LoadStreamingPreset_Lossy(get_simple_output_encoder(encoder));
+
+	if (main->goLiveConfigData)
+		throw "Go Live Config configured but unsupported with Simple Output";
 
 	if (!CreateAACEncoder(aacStreaming, aacStreamEncID, GetAudioBitrate(),
 			      "simple_aac", 0))
@@ -1191,7 +1196,7 @@ struct AdvancedOutput : BasicOutputHandler {
 	OBSEncoder streamAudioEnc;
 	OBSEncoder streamArchiveEnc;
 	OBSEncoder aacTrack[MAX_AUDIO_MIXES];
-	OBSEncoder videoStreaming[3];
+	OBSEncoder videoStreaming[MAX_VIDEO_ENCODERS];
 	OBSEncoder videoRecording;
 
 	bool ffmpegOutput;
@@ -1291,7 +1296,6 @@ AdvancedOutput::AdvancedOutput(OBSBasic *main_) : BasicOutputHandler(main_)
 		config_get_bool(main->Config(), "AdvOut", "FFOutputToFile");
 	useStreamEncoder = astrcmpi(recordEncoder, "none") == 0;
 
-	OBSData streamEncSettings = GetDataFromJsonFile("streamEncoder.json");
 	OBSData recordEncSettings = GetDataFromJsonFile("recordEncoder.json");
 
 	if (ffmpegOutput) {
@@ -1357,6 +1361,19 @@ AdvancedOutput::AdvancedOutput(OBSBasic *main_) : BasicOutputHandler(main_)
 		}
 	}
 
+	if (OBSDataArrayAutoRelease encodings = obs_data_get_array(
+		    main->goLiveConfigData, "encoder_configurations")) {
+		for (int i = 0; i < obs_data_array_count(encodings); ++i) {
+			OBSDataAutoRelease enc =
+				obs_data_array_item(encodings, i);
+			QMessageBox::information(
+				main, "xx",
+				QString(obs_data_get_json(enc)),
+				QMessageBox::Ok);
+		}
+	}
+
+	OBSData streamEncSettings = GetDataFromJsonFile("streamEncoder.json");
 	videoStreaming[0] = obs_video_encoder_create(streamEncoder,
 						  "advanced_video_stream1",
 						  streamEncSettings, nullptr);
