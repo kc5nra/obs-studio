@@ -1390,47 +1390,26 @@ AdvancedOutput::AdvancedOutput(OBSBasic *main_) : BasicOutputHandler(main_)
 		obs_data_apply(settings, streamEncSettings);
 		obs_data_apply(settings, goLiveSettings);
 
-		QMessageBox::information(main, "xx",
+		char name[80];
+		sprintf(name, "advanced_video_stream%0d", i + 1);
+
+		QMessageBox::information(main, QString(name),
 					 QString(obs_data_get_json(settings)),
 					 QMessageBox::Ok);
-		QMessageBox::information(
+		/* QMessageBox::information(
 			main, "ontopof",
 			QString(obs_data_get_json(streamEncSettings)),
-			QMessageBox::Ok);
+			QMessageBox::Ok);*/
+
+		videoStreaming[i] = obs_video_encoder_create(
+			streamEncoder, name, settings, nullptr);
+
+		if (!videoStreaming[i])
+			throw "Failed to create streaming video encoder NNN "
+			      "(advanced output)";
+		obs_encoder_release(videoStreaming[i]);
 	}
 
-
-	// HACK!!! Create additional video encoders
-	OBSData streamEncSettings2 = GetDataFromJsonFile("streamEncoder.json");
-	obs_data_set_int(streamEncSettings2, "bitrate", 3100);
-	obs_data_set_string(streamEncSettings2, "preset", "ll"); // "llhq"
-	obs_data_set_string(streamEncSettings2, "profile", "main");
-	obs_data_set_bool(streamEncSettings2, "lookahead", false);
-	obs_data_set_int(streamEncSettings2, "bf", 2);
-	obs_data_set_int(streamEncSettings2, "keyInt_sec", 2);
-	videoStreaming[1] = obs_video_encoder_create(streamEncoder,
-						     "advanced_video_stream2",
-						     streamEncSettings2,
-						     nullptr);
-	if (!videoStreaming[1])
-		throw "Failed to create streaming video encoder 2 "
-		      "(advanced output)";
-	obs_encoder_release(videoStreaming[1]);
-
-	OBSData streamEncSettings3 = GetDataFromJsonFile("streamEncoder.json");
-	obs_data_set_int(streamEncSettings3, "bitrate", 2100);
-	obs_data_set_string(streamEncSettings3, "preset", "ll"); // "llhq"
-	obs_data_set_string(streamEncSettings3, "profile", "main");
-	obs_data_set_bool(streamEncSettings3, "lookahead", false);
-	obs_data_set_int(streamEncSettings3, "bf", 2);
-	videoStreaming[2] = obs_video_encoder_create(streamEncoder,
-						     "advanced_video_stream3",
-						     streamEncSettings3,
-						     nullptr);
-	if (!videoStreaming[2])
-		throw "Failed to create streaming video encoder 3 "
-		      "(advanced output)";
-	obs_encoder_release(videoStreaming[2]);
 
 	const char *rate_control = obs_data_get_string(
 		useStreamEncoder ? streamEncSettings : recordEncSettings,
