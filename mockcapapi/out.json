@@ -2,16 +2,12 @@
 	"meta": {
 		"schema_version": "2023-05-10",
 		"service": "ivs",
-		"service_id": "f1305a5e-f2a2-11ed-a05b-0242ac120003"
+		"service_id": "0619bfb6-c413-4724-88cf-7382ea0c092a"
 	},
 	"ingest_endpoints": [
 		{
-			"protocol": "RTMP",
-			"url_template": "rtmp://sjc05.contribute.live-video.net/app/{stream_key}"
-		},
-		{
 			"protocol": "RTMPS",
-			"url_template": "rtmps://sjc05.contribute.live-video.net/app/{stream_key}"
+			"url_template": "rtmps://g.staging.contribute.live-video.net/app/{stream_key}"
 		}
 	],
 	"encoder_configurations": [

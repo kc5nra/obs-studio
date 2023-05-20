@@ -1,0 +1,17 @@
+{
+	"meta": {
+		"schema_version": "2023-05-10",
+		"service": "ivs",
+		"service_id": "4cbeef41-5e2b-4765-b948-4f3a8e62a197"
+	},
+	"ingest_endpoints": [
+		{
+			"protocol": "RTMP",
+			"url_template": "rtmp://sjc05.contribute.live-video.net/app/{stream_key}"
+		},
+		{
+			"protocol": "RTMPS",
+			"url_template": "rtmps://sjc05.contribute.live-video.net/app/{stream_key}"
+		}
+	]
+}
