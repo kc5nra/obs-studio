@@ -647,6 +647,8 @@ private:
 	std::string lastScreenshot;
 	std::string lastReplay;
 
+	bool DownloadGoLiveConfig();
+
 public slots:
 	void DeferSaveBegin();
 	void DeferSaveEnd();

@@ -6541,6 +6541,66 @@ void OBSBasic::ShowYouTubeAutoStartWarning()
 #endif
 
 
+bool OBSBasic::DownloadGoLiveConfig()
+{
+	// andrew download code start
+	QString encodeConfigError;
+	OBSData encodeConfigObsData;
+
+	std::string encodeConfigText;
+	std::string libraryError;
+
+	std::vector<std::string> headers;
+	headers.push_back("Content-Type: application/json");
+	bool encodeConfigDownloadedOk = GetRemoteFile(
+		ENCODE_REMOTE_URL, encodeConfigText, libraryError, // out params
+		nullptr, nullptr, // out params (response code and content type)
+		"POST", "{}", headers,
+		nullptr, // signature
+		3);      // timeout in seconds
+
+	if (!encodeConfigDownloadedOk) {
+		encodeConfigError =
+			QString() + "Could not fetch config from " +
+			ENCODE_REMOTE_URL + "\n\nHTTP error: " +
+			QString::fromStdString(libraryError) +
+			"\n\nDo you want to stream anyway? You'll only stream a single quality option.";
+	} else {
+		// XXX: entirely different json parser just because it gives us errors
+		// is a bit silly
+		Json encodeConfigJson =
+			Json::parse(encodeConfigText, libraryError);
+		if (!encodeConfigJson.is_object()) {
+			encodeConfigError =
+				QString() + "JSON parse error: " +
+				QString::fromStdString(libraryError);
+		}
+
+		encodeConfigObsData =
+			obs_data_create_from_json(encodeConfigText.c_str());
+	}
+
+	if (!encodeConfigError.isEmpty()) {
+		int carryOn = QMessageBox::warning(
+			this, "Multi-encode Staff Beta Error",
+			encodeConfigError, QMessageBox::Yes, QMessageBox::No);
+
+		if (carryOn != QMessageBox::Yes)
+			return false;
+
+		encodeConfigObsData = nullptr;
+	}
+
+	blog(LOG_INFO, "Go Live Config data: %s", encodeConfigText.c_str());
+
+	if (encodeConfigObsData) {
+		this->goLiveConfigData = encodeConfigObsData;
+		this->ResetOutputs();
+	}
+
+	return true;
+}
+
 void OBSBasic::StartStreaming()
 {
 	if (outputHandler->StreamingActive())
@@ -6573,59 +6633,8 @@ void OBSBasic::StartStreaming()
 	}
 
 	
-	// andrew download code start
-	QString encodeConfigError;
-	OBSData encodeConfigObsData;
-
-	std::string encodeConfigText;
-	std::string libraryError;
-
-	std::vector<std::string> headers;
-	headers.push_back("Content-Type: application/json");
-	bool encodeConfigDownloadedOk = GetRemoteFile(ENCODE_REMOTE_URL,
-		encodeConfigText, libraryError, // out params
-		nullptr, nullptr,            // out params (response code and content type)
-		"POST", "{}", headers,
-		nullptr, // signature
-		3); // timeout in seconds
-
-	if (!encodeConfigDownloadedOk)
-	{
-		encodeConfigError = QString() + "Could not fetch config from " + ENCODE_REMOTE_URL +
-			"\n\nHTTP error: " + QString::fromStdString(libraryError) +
-			"\n\nDo you want to stream anyway? You'll only stream a single quality option.";
-	} else {
-		// XXX: entirely different json parser just because it gives us errors
-		// is a bit silly
-		Json encodeConfigJson = Json::parse(encodeConfigText, libraryError);
-		if (!encodeConfigJson.is_object()) {
-			encodeConfigError =
-				QString() + "JSON parse error: " +
-				QString::fromStdString(libraryError);
-		}
-
-		encodeConfigObsData =
-			obs_data_create_from_json(encodeConfigText.c_str());
-	}
-
-	if (!encodeConfigError.isEmpty()) {
-		int carryOn = QMessageBox::warning(
-			this, "Multi-encode Staff Beta Error", encodeConfigError,
-			QMessageBox::Yes, QMessageBox::No);
-
-		if (carryOn != QMessageBox::Yes)
-			return;
-
-		encodeConfigObsData = nullptr;
-	}
-
-	blog(LOG_INFO, "Go Live Config data: %s", encodeConfigText.c_str());
-	// andrew download code end
-
-	if (encodeConfigObsData) {
-		this->goLiveConfigData = encodeConfigObsData;
-		this->ResetOutputs();
-	}
+	if (!DownloadGoLiveConfig())
+		return;
 
 	if (!outputHandler->SetupStreaming(service)) {
 		DisplayStreamStartError();
