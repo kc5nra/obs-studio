@@ -112,6 +112,7 @@ static bool twitch_ingest_update(void *param, struct file_download_data *data)
 	pthread_mutex_lock(&mutex);
 	success = load_ingests((const char *)data->buffer.array, true);
 	pthread_mutex_unlock(&mutex);
+	blog(LOG_INFO, "twitch_ingest_update: success = %d", (int)success);
 
 	if (success) {
 		os_atomic_set_bool(&ingests_refreshed, true);
@@ -161,11 +162,16 @@ extern const char *get_module_name(void);
 
 void twitch_ingests_refresh(int seconds)
 {
-	if (os_atomic_load_bool(&ingests_refreshed))
+	if (os_atomic_load_bool(&ingests_refreshed)) {
+		blog(LOG_INFO,
+		     "twitch_ingests_refresh early return, ingests_refreshed=true");
 		return;
+	}
 
 	if (!os_atomic_load_bool(&ingests_refreshing)) {
 		os_atomic_set_bool(&ingests_refreshing, true);
+
+		blog(LOG_INFO, "twitch_ingests_refresh starting thread");
 
 		twitch_update_info = update_info_create_single(
 			"[twitch ingest update] ", get_module_name(),
@@ -175,8 +181,12 @@ void twitch_ingests_refresh(int seconds)
 
 	/* wait five seconds max when loading ingests for the first time */
 	if (!os_atomic_load_bool(&ingests_loaded)) {
+		blog(LOG_INFO, "twitch_ingests_refresh waiting");
+
 		for (int i = 0; i < seconds * 100; i++) {
 			if (os_atomic_load_bool(&ingests_refreshed)) {
+				blog(LOG_INFO,
+				     "twitch_ingests_refresh quit waiting early");
 				break;
 			}
 			os_sleep_ms(10);

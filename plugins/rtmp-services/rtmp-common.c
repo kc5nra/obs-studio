@@ -676,10 +676,12 @@ static const char *rtmp_common_get_output_type(void *data)
 static const char *rtmp_common_url(void *data)
 {
 	struct rtmp_common *service = data;
+	blog(LOG_INFO, "rtmp_common_url called");
 
 	if (service->service && strcmp(service->service, "Twitch") == 0) {
 		if (service->server && strcmp(service->server, "auto") == 0) {
 			struct twitch_ingest ing;
+			blog(LOG_INFO, "rtmp_common_url fetching auto servers");
 
 			twitch_ingests_refresh(3);
 
@@ -687,6 +689,7 @@ static const char *rtmp_common_url(void *data)
 			ing = twitch_ingest(0);
 			twitch_ingests_unlock();
 
+			blog(LOG_INFO, "rtmp_common_url returning auto server %s", ing.url);
 			return ing.url;
 		}
 	}

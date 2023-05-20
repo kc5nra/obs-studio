@@ -1942,7 +1942,9 @@ bool AdvancedOutput::SetupStreaming(obs_service_t *service)
 
 	const bool rtmpsPreferred =
 		strnicmp(obs_service_get_url(service), "rtmps://", 8);
-	
+
+	OBSDataAutoRelease settings = obs_service_get_settings(service);
+	blog(LOG_INFO, "andrew service settings: %s", obs_data_get_json(settings));
 	if (main->goLiveConfigData) {
 
 	}
