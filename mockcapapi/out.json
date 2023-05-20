@@ -16,7 +16,7 @@
 	],
 	"encoder_configurations": [
 		{
-			"type": "NVENC_H264",
+			"type": "jim_nvenc",
 			"source": true,
 			"width": 1920,
 			"height": 1080,
@@ -28,12 +28,12 @@
 			"bframes": 2
 		},
 		{
-			"XXXtype": "NVENC_H264",
+			"type": "jim_nvenc",
 			"XXXsource": false,
-			"width": 1280,
-			"height": 720,
+			"width": 284,
+			"height": 160,
 			"XXXframerate": [ 30, 1 ],
-			"bitrate": 3100,
+			"bitrate": 300,
 			"preset": "ll",
 			"profile": "main",
 			"lookahead": false,
@@ -42,7 +42,7 @@
 			"XXXrate_control": "CBR"
 		},
 		{
-			"XXXtype": "NVENC_H264",
+			"type": "jim_nvenc",
 			"XXXsource": false,
 			"width": 640,
 			"height": 360,

@@ -1297,6 +1297,18 @@ AdvancedOutput::AdvancedOutput(OBSBasic *main_) : BasicOutputHandler(main_)
 	OBSData streamEncSettings = GetDataFromJsonFile("streamEncoder.json");
 	OBSData recordEncSettings = GetDataFromJsonFile("recordEncoder.json");
 
+	OBSDataArrayAutoRelease goLiveEncodings = obs_data_get_array(
+		main->goLiveConfigData, "encoder_configurations");
+	const size_t encoderCount =
+		max(obs_data_array_count(goLiveEncodings), (size_t)1);
+
+	if (encoderCount > MAX_OUTPUT_VIDEO_ENCODERS)
+		throw "Service-provided Go Live Config has too many video encodings";
+	if (!useStreamEncoder && encoderCount != 1)
+		throw "We have not debugged/tested a dedicated recording video encoder, with multiple stream video encoders";
+	if (ffmpegOutput && encoderCount != 1)
+		throw "FFmpeg output is unsupported with multiple stream video encoders";
+
 	if (ffmpegOutput) {
 		fileOutput[0] = obs_output_create(
 			"ffmpeg_output", "adv_ffmpeg_output", nullptr, nullptr);
@@ -1337,10 +1349,7 @@ AdvancedOutput::AdvancedOutput(OBSBasic *main_) : BasicOutputHandler(main_)
 						  OBSReplayBufferSaved, this);
 		}
 
-		for (int i = 0; i < MAX_OUTPUT_VIDEO_ENCODERS; i++) {
-			if (!videoStreaming[i])
-				continue;
-
+		for (int i = 0; i < (!useStreamEncoder ? 1 : encoderCount); i++) {
 			char name[256];
 			sprintf(name, "adv_file_output_%d", i);
 
@@ -1362,11 +1371,11 @@ AdvancedOutput::AdvancedOutput(OBSBasic *main_) : BasicOutputHandler(main_)
 			obs_encoder_release(videoRecording);
 		}
 	}
-	OBSDataArrayAutoRelease goLiveEncodings = obs_data_get_array(
-		main->goLiveConfigData, "encoder_configurations");
 
+	// XXX set this to false and test, gnarliness will probably come from the case where
+	// we want to override the scaled resolution the local OBS has for source
 	const bool ignoreFirstServerEncoding = true;
-	if (ignoreFirstServerEncoding || !goLiveEncodings)
+	if (ignoreFirstServerEncoding || !obs_data_array_count(goLiveEncodings))
 	{
 		videoStreaming[0] = obs_video_encoder_create(
 			streamEncoder, "advanced_video_stream1",
@@ -1378,13 +1387,18 @@ AdvancedOutput::AdvancedOutput(OBSBasic *main_) : BasicOutputHandler(main_)
 	}
 
 	for (int i = 0; i < obs_data_array_count(goLiveEncodings); ++i) {
-		if (ignoreFirstServerEncoding && i == 0)
-			continue;
-		if (i > MAX_OUTPUT_VIDEO_ENCODERS)
-			throw "Service-provided Go Live Config has too many video encodings";
-
 		OBSDataAutoRelease goLiveSettings =
 			obs_data_array_item(goLiveEncodings, i);
+
+		// XXX rethink this later, practically for now it enforces jim_nvenc
+		const char *this_encoder =
+			obs_data_get_string(goLiveSettings, "type");
+		if (strcmp(streamEncoder, this_encoder) != 0)
+			throw "Mismatch between locally configured video encoder and Go Live Config";
+		     
+		if (ignoreFirstServerEncoding && i == 0)
+			continue;
+
 		OBSDataAutoRelease settings = obs_data_create();
 		obs_data_apply(settings, streamEncSettings);
 		obs_data_apply(settings, goLiveSettings);
@@ -1408,15 +1422,6 @@ AdvancedOutput::AdvancedOutput(OBSBasic *main_) : BasicOutputHandler(main_)
 			      "(advanced output)";
 		obs_encoder_release(videoStreaming[i]);
 	}
-
-	/*for(int i = 0; i < MAX_OUTPUT_VIDEO_ENCODERS; ++i)
-	{
-		char x[100];
-		sprintf(x, "videoStreaming[%0d] = %p", i,
-			videoStreaming[i].Get());
-		QMessageBox::information(main, "ptr", QString(x),
-					 QMessageBox::Ok);
-	}	*/
 
 	const char *rate_control = obs_data_get_string(
 		useStreamEncoder ? streamEncSettings : recordEncSettings,
