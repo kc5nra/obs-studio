@@ -1937,6 +1937,9 @@ bool AdvancedOutput::SetupStreaming(obs_service_t *service)
 		}
 	}
 
+	blog(LOG_INFO, "andrew outputType = '%s', type = '%s', url = '%s'",
+	     outputType.c_str(), type, obs_service_get_url(service));
+
 	/* XXX: this is messy and disgusting and should be refactored */
 	if (outputType != type) {
 		streamDelayStarting.Disconnect();
