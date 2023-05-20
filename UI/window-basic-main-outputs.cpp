@@ -2012,6 +2012,7 @@ bool AdvancedOutput::SetupStreaming(obs_service_t *service)
 	obs_output_set_audio_encoder(streamOutput, streamAudioEnc, 0);
 
 	// HACK!! Setup multiple video encoders ???
+	// XXX ask john why this stuff had to move from HERE (Ctrl-F HERE) ...
 	//obs_output_set_video_encoder2(streamOutput, videoStreaming[1], 1);
 	//obs_output_set_video_encoder2(streamOutput, videoStreaming[2], 2);
 
@@ -2056,9 +2057,13 @@ bool AdvancedOutput::StartStreaming(obs_service_t *service)
 
 	obs_output_set_reconnect_settings(streamOutput, maxRetries, retryDelay);
 
+	// .. down to HERE (Ctrl-F HERE)? is it because obs_output_set_service
+	// needed to happen before this stuff? I don't understand all the Vod Track
+	// support things.
 	SetupVodTrack(service);
-	SetupMultiVideo(service, 1);
-	SetupMultiVideo(service, 2);
+	for (int i = 1; i < MAX_OUTPUT_VIDEO_ENCODERS; ++i)
+		if (videoStreaming[i])
+			SetupMultiVideo(service, i);
 
 	if (obs_output_start(streamOutput)) {
 		return true;
