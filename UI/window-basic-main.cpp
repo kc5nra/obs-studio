@@ -6575,7 +6575,6 @@ void OBSBasic::StartStreaming()
 	
 	// andrew download code start
 	QString encodeConfigError;
-	Json encodeConfigJson;
 	OBSData encodeConfigObsData;
 
 	std::string encodeConfigText;
@@ -6596,7 +6595,9 @@ void OBSBasic::StartStreaming()
 			"\n\nHTTP error: " + QString::fromStdString(libraryError) +
 			"\n\nDo you want to stream anyway? You'll only stream a single quality option.";
 	} else {
-		encodeConfigJson = Json::parse(encodeConfigText, libraryError);
+		// XXX: entirely different json parser just because it gives us errors
+		// is a bit silly
+		Json encodeConfigJson = Json::parse(encodeConfigText, libraryError);
 		if (!encodeConfigJson.is_object()) {
 			encodeConfigError =
 				QString() + "JSON parse error: " +
@@ -6618,13 +6619,7 @@ void OBSBasic::StartStreaming()
 		encodeConfigObsData = nullptr;
 	}
 
-	QMessageBox::information(this, QString("Downloaded config debug, json11 roundtrip"),
-					 QString::fromStdString(encodeConfigJson.dump()),
-					 QMessageBox::Ok);
-
-	QMessageBox::information(this, QString("Download config debug, OBSData roundtrip"),
-		QString(obs_data_get_json(encodeConfigObsData)),
-		QMessageBox::Ok);
+	blog(LOG_INFO, "Go Live Config data: %s", encodeConfigText.c_str());
 	// andrew download code end
 
 	if (encodeConfigObsData) {

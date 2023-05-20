@@ -1406,13 +1406,8 @@ AdvancedOutput::AdvancedOutput(OBSBasic *main_) : BasicOutputHandler(main_)
 		char name[80];
 		sprintf(name, "advanced_video_stream%0d", i + 1);
 
-		QMessageBox::information(main, QString(name),
-					 QString(obs_data_get_json(settings)),
-					 QMessageBox::Ok);
-		/* QMessageBox::information(
-			main, "ontopof",
-			QString(obs_data_get_json(streamEncSettings)),
-			QMessageBox::Ok);*/
+		blog(LOG_INFO, "[%0d] obs_video_encoder_create: %s, %s, %s", i,
+		     this_encoder, name, obs_data_get_json(settings));
 
 		videoStreaming[i] = obs_video_encoder_create(
 			streamEncoder, name, settings, nullptr);
