@@ -1525,10 +1525,13 @@ bool obs_get_video_info(struct obs_video_info *ovi)
 	return true;
 }
 
+// XXX HACK
+extern obs_data_array_t *graphics_export_adapter_data; // from graphics.c
+
 obs_data_array_t *obs_device_adapter_data(void) {
 	if (!obs->video.graphics)
 		return NULL;
-	return 
+	return graphics_export_adapter_data;
 }
 
 float obs_get_video_sdr_white_level(void)

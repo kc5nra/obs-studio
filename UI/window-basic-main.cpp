@@ -6546,7 +6546,7 @@ bool OBSBasic::DownloadGoLiveConfig()
 {
 	OBSDataAutoRelease capabilities = obs_data_create();
 
-	OBSDataArrayAutoRelease adapters = gs_device_adapter_data();
+	OBSDataArrayAutoRelease adapters = obs_device_adapter_data();
 	obs_data_set_array(capabilities, "gpu", adapters);
 
 	const char *capabilitiesJson = obs_data_get_json(capabilities);

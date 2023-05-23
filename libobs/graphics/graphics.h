@@ -528,7 +528,6 @@ struct gs_init_data {
 
 EXPORT const char *gs_get_device_name(void);
 EXPORT int gs_get_device_type(void);
-EXPORT obs_data_array_t *gs_device_adapter_data(void);
 EXPORT void gs_enum_adapters(bool (*callback)(void *param, const char *name,
 					      uint32_t id),
 			     void *param);

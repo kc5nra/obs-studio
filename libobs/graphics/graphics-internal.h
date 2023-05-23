@@ -367,7 +367,7 @@ struct gs_exports {
 		enum gs_color_format color_format, uint32_t target,
 		void *pixmap);
 #endif
-	obs_data_array_t* (*device_adapter_data)();
+	obs_data_array_t* (*device_adapter_data)(void);
 };
 
 struct blend_state {

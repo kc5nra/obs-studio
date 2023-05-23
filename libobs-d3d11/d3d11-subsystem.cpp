@@ -1330,7 +1330,7 @@ static inline void LogD3DAdapters()
 
 
 #include "obs-data.h" // XXX why?
-obs_data_array_t* device_adapter_info()
+extern "C" EXPORT obs_data_array_t *device_adapter_data()
 {
 	ComPtr<IDXGIFactory1> factory;
 	ComPtr<IDXGIAdapter1> adapter;
