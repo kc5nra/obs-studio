@@ -102,6 +102,38 @@ static void log_processor_info(void)
 	RegCloseKey(key);
 }
 
+static void get_processor_info(char** name, DWORD* speed)
+{
+	HKEY key;
+	wchar_t data[1024];
+	DWORD size;
+	LSTATUS status;
+
+	memset(data, 0, sizeof(data));
+
+	status = RegOpenKeyW(
+		HKEY_LOCAL_MACHINE,
+		L"HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", &key);
+	if (status != ERROR_SUCCESS)
+		return;
+
+	size = sizeof(data);
+	status = RegQueryValueExW(key, L"ProcessorNameString", NULL, NULL,
+				  (LPBYTE)data, &size);
+	if (status == ERROR_SUCCESS) {
+		os_wcs_to_utf8_ptr(data, 0, name);
+	} else {
+		*name = 0;
+	}
+
+	size = sizeof(*speed);
+	status = RegQueryValueExW(key, L"~MHz", NULL, NULL, (LPBYTE)speed,
+				  &size);
+	if (status != ERROR_SUCCESS)
+		*speed = 0;
+
+	RegCloseKey(key);
+}
 static void log_processor_cores(void)
 {
 	blog(LOG_INFO, "Physical Cores: %d, Logical Cores: %d",
@@ -252,6 +284,57 @@ static void log_gaming_features(void)
 	}
 }
 
+static obs_data_t *get_gaming_features_data(void)
+{
+	obs_data_t *fdata = obs_data_create();
+	if (win_ver < 0xA00)
+		return fdata;
+
+	struct feature_mapping_s {
+		const char *name;
+		HKEY hkey;
+		LPCWSTR sub_key;
+		LPCWSTR value_name;
+		LPCWSTR backup_value_name;
+	};
+	struct feature_mapping_s features[] = {
+		{"game_bar_enabled", HKEY_CURRENT_USER, WIN10_GAME_BAR_REG_KEY,
+		    L"AppCaptureEnabled", 0},
+		{"game_dvr_allowed", HKEY_CURRENT_USER, WIN10_GAME_DVR_POLICY_REG_KEY,
+		    L"AllowGameDVR", 0},
+		{"game_dvr_enabled", HKEY_CURRENT_USER, WIN10_GAME_DVR_REG_KEY,
+		    L"GameDVR_Enabled", 0},
+		{"game_dvr_bg_recording", HKEY_CURRENT_USER, WIN10_GAME_BAR_REG_KEY,
+		    L"HistoricalCaptureEnabled", 0},
+		{"game_mode_enabled", HKEY_CURRENT_USER, WIN10_GAME_MODE_REG_KEY,
+		    L"AutoGameModeEnabled", L"AllowAutoGameMode"},
+		{"hags_enabled", HKEY_LOCAL_MACHINE, WIN10_HAGS_REG_KEY,
+		    L"HwSchMode", 0}
+	};
+
+	for (int i = 0; i < sizeof(features) / sizeof(*features); ++i) {
+		struct reg_dword info;
+
+		get_reg_dword(features[i].hkey, features[i].sub_key,
+			      features[i].value_name, &info);
+
+		if (info.status != ERROR_SUCCESS &&
+		    features[i].backup_value_name)
+		{
+		    get_reg_dword(features[i].hkey, features[i].sub_key,
+		        features[i].backup_value_name, &info);
+		}
+
+		if (info.status == ERROR_SUCCESS) {
+			obs_data_set_bool(fdata, features[i].name,
+					  info.return_value != 0);
+		}
+	}
+
+	return fdata;
+}
+
+
 static const char *get_str_for_state(int state)
 {
 	switch (state) {
@@ -399,14 +482,26 @@ obs_data_t *os_get_system_info(void)
 
 	obs_data_t *data = obs_data_create();
 
-	// CPU information XXX todo: speed_limit, model
+	// CPU information
 	obs_data_t *cpu_data = obs_data_create();
 	obs_data_set_obj(data, "cpu", cpu_data);
 	obs_data_set_int(cpu_data, "physical_cores", os_get_physical_cores()); 
 	obs_data_set_int(cpu_data, "logical_cores", os_get_logical_cores());
 
-	// XXX todo: gaming features
-	
+	DWORD processorSpeed;
+	char *processorName;
+	get_processor_info(&processorName, &processorSpeed);
+	if (processorSpeed)
+		obs_data_set_int(cpu_data, "speed", processorSpeed);
+	if (processorName)
+		obs_data_set_string(cpu_data, "name", processorName);
+	bfree(processorName);
+
+
+	// Gaming features
+	obs_data_t *gaming_data = get_gaming_features_data();
+	obs_data_set_obj(data, "gaming_features", gaming_data);
+
 	// System information
 	obs_data_t *system_data = obs_data_create();
 	obs_data_set_obj(data, "system", system_data);
