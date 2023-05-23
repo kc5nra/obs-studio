@@ -30,6 +30,9 @@
 extern "C" {
 #endif
 
+struct obs_data;
+typedef struct obs_data obs_data_t;
+
 EXPORT FILE *os_wfopen(const wchar_t *path, const char *mode);
 EXPORT FILE *os_fopen(const char *path, const char *mode);
 EXPORT int64_t os_fgetsize(FILE *file);
@@ -200,6 +203,8 @@ typedef struct os_proc_memory_usage os_proc_memory_usage_t;
 EXPORT bool os_get_proc_memory_usage(os_proc_memory_usage_t *usage);
 EXPORT uint64_t os_get_proc_resident_size(void);
 EXPORT uint64_t os_get_proc_virtual_size(void);
+
+EXPORT obs_data_t *os_get_system_info(void);
 
 /* clang-format off */
 #ifdef __APPLE__

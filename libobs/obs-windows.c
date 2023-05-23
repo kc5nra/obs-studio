@@ -393,6 +393,42 @@ void log_system_info(void)
 	log_security_products();
 }
 
+obs_data_t *os_get_system_info(void)
+{
+	char tmpstr[1024];
+
+	obs_data_t *data = obs_data_create();
+
+	// CPU information XXX todo: speed_limit, model
+	obs_data_t *cpu_data = obs_data_create();
+	obs_data_set_obj(data, "cpu", cpu_data);
+	obs_data_set_int(cpu_data, "physical_cores", os_get_physical_cores()); 
+	obs_data_set_int(cpu_data, "logical_cores", os_get_logical_cores());
+
+	// XXX todo: gaming features
+	
+	// System information
+	obs_data_t *system_data = obs_data_create();
+	obs_data_set_obj(data, "system", system_data);
+
+	struct win_version_info ver;
+	get_win_ver(&ver);
+	sprintf(tmpstr, "%d.%d", ver.major, ver.minor);
+
+	obs_data_set_string(system_data, "version", tmpstr);
+	obs_data_set_string(system_data, "name", "Windows");
+	obs_data_set_int(system_data, "build", ver.build);
+	obs_data_set_string(system_data, "release", get_win_release_id());
+	obs_data_set_int(system_data, "revision", ver.revis);
+	obs_data_set_int(system_data, "bits", is_64_bit_windows() ? 64 : 32);
+	obs_data_set_bool(system_data, "arm", is_arm64_windows());
+	obs_data_set_bool(system_data, "armEmulation", os_get_emulation_status());
+
+	return data;
+
+}
+
+
 struct obs_hotkeys_platform {
 	int vk_codes[OBS_KEY_LAST_VALUE];
 };

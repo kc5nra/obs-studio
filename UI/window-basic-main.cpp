@@ -6540,9 +6540,34 @@ void OBSBasic::ShowYouTubeAutoStartWarning()
 }
 #endif
 
+static obs_data_t *constructGoLivePost() {
+	obs_data_t* postData = obs_data_create();
+	OBSDataAutoRelease capabilitiesData = obs_data_create();
+	obs_data_set_string(postData, "service", "IVS");
+	obs_data_set_string(postData, "schema_version", "2023-05-10");
+	obs_data_set_obj(postData, "capabilities", capabilitiesData);
+
+	OBSData systemData =
+		os_get_system_info(); // XXX autorelease vs set_obj vs apply?
+	obs_data_apply(capabilitiesData, systemData);
+
+	OBSData clientData = obs_data_create();
+	obs_data_set_obj(capabilitiesData, "client", clientData);
+	obs_data_set_string(clientData, "name", "obs-studio");
+	obs_data_set_string(clientData, "version", obs_get_version_string());
+
+	//XXX todo network.speed_limit
+	//XXX todo client weidth,height,framerate
+	//XXX todo gpu
+
+	return postData;
+}
 
 bool OBSBasic::DownloadGoLiveConfig()
 {
+	OBSDataAutoRelease postData = constructGoLivePost();
+	blog(LOG_INFO, "Go live POST data: %s", obs_data_get_json(postData));
+
 	// andrew download code start
 	QString encodeConfigError;
 	OBSData encodeConfigObsData;
@@ -6555,7 +6580,7 @@ bool OBSBasic::DownloadGoLiveConfig()
 	bool encodeConfigDownloadedOk = GetRemoteFile(
 		ENCODE_REMOTE_URL, encodeConfigText, libraryError, // out params
 		nullptr, nullptr, // out params (response code and content type)
-		"POST", "{}", headers,
+		"POST", obs_data_get_json(postData), headers,
 		nullptr, // signature
 		3);      // timeout in seconds
 
