@@ -1,6 +1,7 @@
 package main
 
 import "flag"
+import "io/ioutil"
 import "log"
 import "net/http"
 import "time"
@@ -21,6 +22,12 @@ func main() {
   flag.Parse()
 
   http.HandleFunc("/", func(res http.ResponseWriter, req *http.Request) {
+    body, err := ioutil.ReadAll(req.Body)
+    if err != nil {
+      log.Printf("Error reading request body: %v", err)
+    } else {
+      log.Printf("Request body: %s", body)
+    }
     time.Sleep(time.Millisecond * time.Duration(delayMs))
     if sjcProd {
         res.Write(contentSjcProd)
