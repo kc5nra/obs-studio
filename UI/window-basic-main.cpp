@@ -75,6 +75,7 @@
 #include "undo-stack-obs.hpp"
 #include <fstream>
 #include <sstream>
+#include "graphics/graphics.h"
 
 #ifdef _WIN32
 #include "win-update/win-update.hpp"
@@ -6543,7 +6544,14 @@ void OBSBasic::ShowYouTubeAutoStartWarning()
 
 bool OBSBasic::DownloadGoLiveConfig()
 {
-	// andrew download code start
+	OBSDataAutoRelease capabilities = obs_data_create();
+
+	OBSDataArrayAutoRelease adapters = gs_device_adapter_data();
+	obs_data_set_array(capabilities, "gpu", adapters);
+
+	const char *capabilitiesJson = obs_data_get_json(capabilities);
+	blog(LOG_INFO, "Capabilities: %s", capabilitiesJson);
+
 	QString encodeConfigError;
 	OBSData encodeConfigObsData;
 

@@ -240,6 +240,7 @@ bool load_graphics_imports(struct gs_exports *exports, void *module,
 	GRAPHICS_IMPORT(device_query_dmabuf_modifiers_for_format);
 	GRAPHICS_IMPORT(device_texture_create_from_pixmap);
 #endif
+	GRAPHICS_IMPORT_OPTIONAL(device_adapter_data);
 
 	return success;
 }
