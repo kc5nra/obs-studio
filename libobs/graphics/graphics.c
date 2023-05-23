@@ -72,17 +72,6 @@ static inline bool gs_valid(const char *f)
 
 #define IMMEDIATE_COUNT 512
 
-/*obs_data_array_t *gs_device_adapter_data(void)
-{
-	graphics_t *graphics = thread_graphics;
-
-	if (graphics->exports.device_adapter_data) {
-		return graphics->exports.device_adapter_data();
-	}
-	return NULL;
-}*/
-
-
 void gs_enum_adapters(bool (*callback)(void *param, const char *name,
 				       uint32_t id),
 		      void *param)
