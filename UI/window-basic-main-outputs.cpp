@@ -1545,20 +1545,27 @@ static inline bool ServiceSupportsVodTrack(const char *service)
 	return false;
 }
 
-inline void AdvancedOutput::SetupStreaming()
+void AdvancedOutputGetRescaleRes(config_t *config, unsigned int *cx,
+				 unsigned int *cy)
 {
-	bool rescale = config_get_bool(main->Config(), "AdvOut", "Rescale");
+	*cx = *cy = 0;
+
+	bool rescale = config_get_bool(config, "AdvOut", "Rescale");
 	const char *rescaleRes =
-		config_get_string(main->Config(), "AdvOut", "RescaleRes");
-	unsigned int cx = 0;
-	unsigned int cy = 0;
+		config_get_string(config, "AdvOut", "RescaleRes");
 
 	if (rescale && rescaleRes && *rescaleRes) {
-		if (sscanf(rescaleRes, "%ux%u", &cx, &cy) != 2) {
-			cx = 0;
-			cy = 0;
+		if (sscanf(rescaleRes, "%ux%u", cx, cy) != 2) {
+			*cx = 0;
+			*cy = 0;
 		}
 	}
+}
+
+inline void AdvancedOutput::SetupStreaming()
+{
+	unsigned int cx, cy;
+	AdvancedOutputGetRescaleRes(main->Config(), &cx, &cy);
 
 	obs_output_set_audio_encoder(streamOutput, streamAudioEnc, 0);
 

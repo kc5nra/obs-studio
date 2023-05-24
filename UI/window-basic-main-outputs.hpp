@@ -73,3 +73,4 @@ protected:
 BasicOutputHandler *CreateSimpleOutputHandler(OBSBasic *main);
 BasicOutputHandler *CreateAdvancedOutputHandler(OBSBasic *main);
 OBSData AdvancedOutputStreamEncoderSettings();
+void AdvancedOutputGetRescaleRes(config_t* config, unsigned int *cx, unsigned int *cy);

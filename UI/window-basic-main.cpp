@@ -6573,6 +6573,12 @@ static obs_data_t *constructGoLivePost(config_t *config, uint32_t fpsNum,
 	OBSData encodingData = AdvancedOutputStreamEncoderSettings();
 	obs_data_set_string(encodingData, "type",
 			    config_get_string(config, "AdvOut", "Encoder"));
+	unsigned int cx, cy;
+	AdvancedOutputGetRescaleRes(config, &cx, &cy);
+	if(cx && cy) {
+		obs_data_set_int(encodingData, "width", cx);
+		obs_data_set_int(encodingData, "height", cy);
+	}
 
 	OBSDataArray encodingDataArray = obs_data_array_create();
 	obs_data_array_push_back(encodingDataArray, encodingData); 
