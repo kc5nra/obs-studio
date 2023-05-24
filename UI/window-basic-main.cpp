@@ -6550,7 +6550,7 @@ static obs_data_t *constructGoLivePost(config_t *config, uint32_t fpsNum,
 	obs_data_set_string(postData, "schema_version", "2023-05-10");
 	obs_data_set_obj(postData, "capabilities", capabilitiesData);
 
-	OBSDataArrayAutoRelease adapters = obs_device_adapter_data();
+	OBSDataArray adapters = obs_device_adapter_data();
 	obs_data_set_array(capabilitiesData, "gpu", adapters);
 
 	OBSData systemData =
