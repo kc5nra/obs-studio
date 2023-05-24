@@ -1294,7 +1294,7 @@ AdvancedOutput::AdvancedOutput(OBSBasic *main_) : BasicOutputHandler(main_)
 		config_get_bool(main->Config(), "AdvOut", "FFOutputToFile");
 	useStreamEncoder = astrcmpi(recordEncoder, "none") == 0;
 
-	OBSData streamEncSettings = GetDataFromJsonFile("streamEncoder.json");
+	OBSData streamEncSettings = AdvancedOutputStreamEncoderSettings();;
 	OBSData recordEncSettings = GetDataFromJsonFile("recordEncoder.json");
 
 	OBSDataArrayAutoRelease goLiveEncodings = obs_data_get_array(
@@ -1463,6 +1463,12 @@ AdvancedOutput::AdvancedOutput(OBSBasic *main_) : BasicOutputHandler(main_)
 				  "file_changed", OBSRecordFileChanged, this);
 }
 
+OBSData AdvancedOutputStreamEncoderSettings()
+{
+	return GetDataFromJsonFile("streamEncoder.json");
+}
+
+
 void AdvancedOutput::UpdateStreamSettings()
 {
 	bool applyServiceSettings = config_get_bool(main->Config(), "AdvOut",
@@ -1474,7 +1480,7 @@ void AdvancedOutput::UpdateStreamSettings()
 	const char *streamEncoder =
 		config_get_string(main->Config(), "AdvOut", "Encoder");
 
-	OBSData settings = GetDataFromJsonFile("streamEncoder.json");
+	OBSData settings = AdvancedOutputStreamEncoderSettings();
 	ApplyEncoderDefaults(settings, videoStreaming[0]);
 
 	if (applyServiceSettings) {

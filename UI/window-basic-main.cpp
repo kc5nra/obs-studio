@@ -6568,6 +6568,17 @@ static obs_data_t *constructGoLivePost(config_t *config, uint32_t fpsNum,
 	obs_data_set_int(clientData, "fps_numerator", fpsNum);
 	obs_data_set_int(clientData, "fps_denominator", fpsDen);
 
+	// XXX hardcoding the present-day AdvancedOutput behavior here..
+	// XXX include rescaled output size?
+	OBSData encodingData = AdvancedOutputStreamEncoderSettings();
+	obs_data_set_string(encodingData, "type",
+			    config_get_string(config, "AdvOut", "Encoder"));
+
+	OBSDataArray encodingDataArray = obs_data_array_create();
+	obs_data_array_push_back(encodingDataArray, encodingData); 
+	obs_data_set_array(postData, "client_encoder_configurations",
+			   encodingDataArray);
+
 	//XXX todo network.speed_limit
 
 	return postData;
