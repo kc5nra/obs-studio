@@ -311,7 +311,7 @@ void jim_nvenc_load(bool h264, bool hevc, bool av1)
 		obs_register_encoder(&av1_nvenc_info);
 	else
 		blog(LOG_WARNING, "[NVENC] AV1 is not supported");
-}
+} // XXX client capabilities
 
 void jim_nvenc_unload(void)
 {

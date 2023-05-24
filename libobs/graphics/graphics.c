@@ -145,6 +145,9 @@ static bool graphics_init_sprite_vb(struct graphics_subsystem *graphics)
 	return true;
 }
 
+// XXX HACK
+obs_data_array_t *graphics_export_adapter_data = 0;
+
 static bool graphics_init(struct graphics_subsystem *graphics)
 {
 	struct matrix4 top_mat;
@@ -176,8 +179,22 @@ static bool graphics_init(struct graphics_subsystem *graphics)
 	graphics->exports.device_blend_op(graphics->device,
 					  graphics->cur_blend_state.op);
 
+	if (graphics->exports.device_adapter_data) {
+		blog(LOG_INFO, "there is a device_adapter_data in the module");
+		graphics_export_adapter_data =
+			graphics->exports.device_adapter_data();
+		blog(LOG_INFO, "it returned: %s",
+		     graphics_export_adapter_data
+			     ? "array"
+			     : "(null)");
+
+	} else {
+		blog(LOG_INFO, "NO device_adapter_data in the module");
+	}
+	
 	graphics->exports.device_leave_context(graphics->device);
 
+	
 	gs_init_image_deps();
 	return true;
 }

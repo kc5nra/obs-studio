@@ -19,6 +19,7 @@
 
 #include "../util/threading.h"
 #include "../util/darray.h"
+#include "../obs-data.h"
 #include "graphics.h"
 #include "matrix3.h"
 #include "matrix4.h"
@@ -366,6 +367,7 @@ struct gs_exports {
 		enum gs_color_format color_format, uint32_t target,
 		void *pixmap);
 #endif
+	obs_data_array_t* (*device_adapter_data)(void);
 };
 
 struct blend_state {

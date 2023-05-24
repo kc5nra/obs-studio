@@ -1438,7 +1438,7 @@ int obs_reset_video(struct obs_video_info *ovi)
 	const char *yuv_format = get_video_colorspace_name(ovi->colorspace);
 	const char *yuv_range =
 		get_video_range_name(ovi->output_format, ovi->range);
-
+	// XXX client capabilites API
 	blog(LOG_INFO, "---------------------------------");
 	blog(LOG_INFO,
 	     "video settings reset:\n"
@@ -1523,6 +1523,15 @@ bool obs_get_video_info(struct obs_video_info *ovi)
 
 	*ovi = obs->video.main_mix->ovi;
 	return true;
+}
+
+// XXX HACK
+extern obs_data_array_t *graphics_export_adapter_data; // from graphics.c
+
+obs_data_array_t *obs_device_adapter_data(void) {
+	if (!obs->video.graphics)
+		return NULL;
+	return graphics_export_adapter_data;
 }
 
 float obs_get_video_sdr_white_level(void)

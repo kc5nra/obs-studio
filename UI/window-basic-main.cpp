@@ -75,6 +75,7 @@
 #include "undo-stack-obs.hpp"
 #include <fstream>
 #include <sstream>
+#include "graphics/graphics.h"
 
 #ifdef _WIN32
 #include "win-update/win-update.hpp"
@@ -6546,6 +6547,9 @@ static obs_data_t *constructGoLivePost() {
 	obs_data_set_string(postData, "service", "IVS");
 	obs_data_set_string(postData, "schema_version", "2023-05-10");
 	obs_data_set_obj(postData, "capabilities", capabilitiesData);
+
+	OBSDataArrayAutoRelease adapters = obs_device_adapter_data();
+	obs_data_set_array(capabilitiesData, "gpu", adapters);
 
 	OBSData systemData =
 		os_get_system_info(); // XXX autorelease vs set_obj vs apply?

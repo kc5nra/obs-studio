@@ -23,6 +23,9 @@
 #include <objc/objc-runtime.h>
 #endif
 
+struct obs_data_array;
+typedef struct obs_data_array obs_data_array_t;
+
 /*
  * This is an API-independent graphics subsystem wrapper.
  *

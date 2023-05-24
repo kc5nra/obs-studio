@@ -427,6 +427,8 @@ EXPORT bool obs_reset_audio2(const struct obs_audio_info2 *oai);
 /** Gets the current video settings, returns false if no video */
 EXPORT bool obs_get_video_info(struct obs_video_info *ovi);
 
+EXPORT obs_data_array_t *obs_device_adapter_data(void);
+
 /** Gets the SDR white level, returns 300.f if no video */
 EXPORT float obs_get_video_sdr_white_level(void);
 

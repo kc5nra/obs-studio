@@ -466,6 +466,7 @@ void log_system_info(void)
 	win_ver = (ver.major << 8) | ver.minor;
 	win_build = ver.build;
 
+	// XXX client capabilities
 	log_processor_info();
 	log_processor_cores();
 	log_available_memory();
