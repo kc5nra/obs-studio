@@ -6541,7 +6541,9 @@ void OBSBasic::ShowYouTubeAutoStartWarning()
 }
 #endif
 
-static obs_data_t *constructGoLivePost() {
+static obs_data_t *constructGoLivePost(config_t *config, uint32_t fpsNum,
+				       uint32_t fpsDen)
+{
 	obs_data_t* postData = obs_data_create();
 	OBSDataAutoRelease capabilitiesData = obs_data_create();
 	obs_data_set_string(postData, "service", "IVS");
@@ -6559,17 +6561,27 @@ static obs_data_t *constructGoLivePost() {
 	obs_data_set_obj(capabilitiesData, "client", clientData);
 	obs_data_set_string(clientData, "name", "obs-studio");
 	obs_data_set_string(clientData, "version", obs_get_version_string());
+	obs_data_set_int(clientData, "width",
+			 config_get_uint(config, "Video", "BaseCX"));
+	obs_data_set_int(clientData, "height",
+			 config_get_uint(config, "Video", "BaseCY"));
+	obs_data_set_int(clientData, "output_width",
+			 config_get_uint(config, "Video", "OutputCX")); // XXX ???
+	obs_data_set_int(clientData, "output_height",
+			 config_get_uint(config, "Video", "OutputCY")); // XXX ???
+	obs_data_set_int(clientData, "fps_numerator", fpsNum);
+	obs_data_set_int(clientData, "fps_denominator", fpsDen);
 
 	//XXX todo network.speed_limit
-	//XXX todo client weidth,height,framerate
-	//XXX todo gpu
 
 	return postData;
 }
 
 bool OBSBasic::DownloadGoLiveConfig()
 {
-	OBSDataAutoRelease postData = constructGoLivePost();
+	uint32_t fpsNum, fpsDen;
+	GetConfigFPS(fpsNum, fpsDen);
+	OBSDataAutoRelease postData = constructGoLivePost(this->Config(), fpsNum, fpsDen);
 	blog(LOG_INFO, "Go live POST data: %s", obs_data_get_json(postData));
 
 	// andrew download code start
