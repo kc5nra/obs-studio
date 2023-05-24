@@ -6562,13 +6562,9 @@ static obs_data_t *constructGoLivePost(config_t *config, uint32_t fpsNum,
 	obs_data_set_string(clientData, "name", "obs-studio");
 	obs_data_set_string(clientData, "version", obs_get_version_string());
 	obs_data_set_int(clientData, "width",
-			 config_get_uint(config, "Video", "BaseCX"));
+			 config_get_uint(config, "Video", "OutputCX"));
 	obs_data_set_int(clientData, "height",
-			 config_get_uint(config, "Video", "BaseCY"));
-	obs_data_set_int(clientData, "output_width",
-			 config_get_uint(config, "Video", "OutputCX")); // XXX ???
-	obs_data_set_int(clientData, "output_height",
-			 config_get_uint(config, "Video", "OutputCY")); // XXX ???
+			 config_get_uint(config, "Video", "OutputCY"));
 	obs_data_set_int(clientData, "fps_numerator", fpsNum);
 	obs_data_set_int(clientData, "fps_denominator", fpsDen);
 
