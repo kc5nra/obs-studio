@@ -1,55 +1,64 @@
 {
-	"meta": {
-		"schema_version": "2023-05-10",
-		"service": "ivs",
-		"service_id": "0619bfb6-c413-4724-88cf-7382ea0c092a"
-	},
-	"ingest_endpoints": [
-		{
-			"protocol": "RTMPS",
-			"url_template": "rtmps://g.staging.contribute.live-video.net/app/{stream_key}"
-		}
-	],
-	"encoder_configurations": [
-		{
-			"type": "jim_nvenc",
-			"source": true,
-			"width": 1920,
-			"height": 1080,
-			"framerate": [ 30, 1 ],
-			"bitrate": 5000,
-			"keyframe_interval": 2,
-			"rate_control": "CBR",
-			"profile": "HIGH",
-			"bframes": 2
-		},
-		{
-			"type": "jim_nvenc",
-			"XXXsource": false,
-			"width": 284,
-			"height": 160,
-			"XXXframerate": [ 30, 1 ],
-			"bitrate": 300,
-			"preset": "ll",
-			"profile": "main",
-			"lookahead": false,
-			"bf": 2,
-			"keyInt_sec": 2,
-			"XXXrate_control": "CBR"
-		},
-		{
-			"type": "jim_nvenc",
-			"XXXsource": false,
-			"width": 640,
-			"height": 360,
-			"XXXframerate": [ 30, 1 ],
-			"bitrate": 2100,
-			"preset": "ll",
-			"profile": "main",
-			"lookahead": false,
-			"bf": 2,
-			"keyInt_sec": 2,
-			"XXXrate_control": "CBR"
-		}
-	]
+    "meta": {
+        "schema_version": "2023-05-13",
+        "service": "IVS",
+        "config_id": "42e2b69a-2869-421f-aaa6-8c66dfd1d41d"
+    },
+    "ingest_endpoints": [
+        {
+            "protocol": "RTMP",
+            "url_template": "rtmp://pdx.contribute.live-video.net/app/{stream_key}"
+        },
+        {
+            "protocol": "RTMP",
+            "url_template": "rtmp://pdx.contribute.live-video.net/app/{stream_key}"
+        }
+    ],
+    "encoder_configurations": [
+        {
+            "type": "jim_nvenc",
+            "rate_control": "CBR",
+            "profile": "high",
+            "width": 1920,
+            "height": 1080,
+            "bitrate": 5000,
+            "preset": "ll",
+            "lookahead": false,
+            "bf": 2,
+            "keyInt_sec": 2,
+            "framerate_numerator": 30,
+            "framerate_denominator": 1,
+            "source": true
+        },
+        {
+            "type": "jim_nvenc",
+            "rate_control": "CBR",
+            "profile": "main",
+            "width": 284,
+            "height": 160,
+            "bitrate": 300,
+            "preset": "ll",
+            "lookahead": false,
+            "bf": 2,
+            "keyInt_sec": 2,
+            "framerate_numerator": 30,
+            "framerate_denominator": 1,
+            "source": false
+        },
+        {
+            "type": "jim_nvenc",
+            "rate_control": "CBR",
+            "profile": "main",
+            "width": 640,
+            "height": 360,
+            "bitrate": 2100,
+            "preset": "ll",
+            "lookahead": false,
+            "bf": 2,
+            "keyInt_sec": 2,
+            "framerate_numerator": 30,
+            "framerate_denominator": 1,
+            "source": false
+        }
+    ]
 }
