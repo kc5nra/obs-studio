@@ -290,6 +290,7 @@ private:
 	void LoadAdvOutputRecordingSettings();
 	void LoadAdvOutputRecordingEncoderProperties();
 	void LoadAdvOutputFFmpegSettings();
+	void LoadAdvOutputFLVSettings();
 	void LoadAdvOutputAudioSettings();
 	void SetAdvOutputFFmpegEnablement(ff_codec_type encoderType,
 					  bool enabled,
@@ -383,6 +384,7 @@ private slots:
 	void on_service_currentIndexChanged(int idx);
 	void on_simpleOutputBrowse_clicked();
 	void on_advOutRecPathBrowse_clicked();
+	void on_advOutFLVRecPathBrowse_clicked();
 	void on_advOutFFPathBrowse_clicked();
 	void on_advOutEncoder_currentIndexChanged(int idx);
 	void on_advOutRecEncoder_currentIndexChanged(int idx);

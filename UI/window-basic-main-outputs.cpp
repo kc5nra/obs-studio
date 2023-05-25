@@ -1198,6 +1198,7 @@ struct AdvancedOutput : BasicOutputHandler {
 	OBSEncoder videoRecording;
 
 	bool ffmpegOutput;
+	bool flvOutput;
 	bool ffmpegRecording;
 	bool useStreamEncoder;
 	bool usesBitrate = false;
@@ -1217,6 +1218,7 @@ struct AdvancedOutput : BasicOutputHandler {
 	inline void SetupStreaming();
 	inline void SetupRecording();
 	inline void SetupFFmpeg();
+	inline void SetupFLV();
 	void SetupOutputs() override;
 	int GetAudioBitrate(size_t i) const;
 
@@ -1289,6 +1291,7 @@ AdvancedOutput::AdvancedOutput(OBSBasic *main_) : BasicOutputHandler(main_)
 #endif
 
 	ffmpegOutput = astrcmpi(recType, "FFmpeg") == 0;
+	flvOutput = astrcmpi(recType, "FLV") == 0;
 	ffmpegRecording =
 		ffmpegOutput &&
 		config_get_bool(main->Config(), "AdvOut", "FFOutputToFile");
@@ -1315,6 +1318,11 @@ AdvancedOutput::AdvancedOutput(OBSBasic *main_) : BasicOutputHandler(main_)
 		if (!fileOutput[0])
 			throw "Failed to create recording FFmpeg output "
 			      "(advanced output)";
+	} else if (flvOutput) {
+		fileOutput[0] = obs_output_create(
+			"flv_output", "adv_flv_output", nullptr, nullptr);
+		if (!fileOutput[0])
+			throw "Failed to create recording FLV output (advanced output)";
 	} else {
 		bool useReplayBuffer =
 			config_get_bool(main->Config(), "AdvOut", "RecRB");
@@ -1765,6 +1773,14 @@ inline void AdvancedOutput::SetupFFmpeg()
 	obs_output_update(fileOutput[0], settings);
 }
 
+inline void AdvancedOutput::SetupFLV()
+{
+	for (size_t i = 0; i < 3; i++)
+		obs_output_set_video_encoder2(fileOutput[0], videoStreaming[i],
+					      i);
+	obs_output_set_audio_encoder(fileOutput[0], aacTrack[0], 0);
+}
+
 static inline void SetEncoderName(obs_encoder_t *encoder, const char *name,
 				  const char *defaultName)
 {
@@ -1845,6 +1861,8 @@ void AdvancedOutput::SetupOutputs()
 
 	if (ffmpegOutput)
 		SetupFFmpeg();
+	else if (flvOutput)
+		SetupFLV();
 	else
 		SetupRecording();
 }
@@ -2129,7 +2147,7 @@ bool AdvancedOutput::StartRecording()
 	if (!Active())
 		SetupOutputs();
 
-	if (!ffmpegOutput || ffmpegRecording) {
+	if (!flvOutput && (!ffmpegOutput || ffmpegRecording)) {
 		path = config_get_string(main->Config(), "AdvOut",
 					 ffmpegRecording ? "FFFilePath"
 							 : "RecFilePath");
@@ -2197,9 +2215,25 @@ bool AdvancedOutput::StartRecording()
 
 			obs_output_update(fileOutput[i], settings);
 		}
+	} else if (flvOutput) {
+		path = config_get_string(
+			main->Config(), "AdvOut", "FLVRecFilePath");
+		noSpace = config_get_bool(
+			main->Config(), "AdvOut", "FLVRecFileNameWithoutSpace");
+		filenameFormat = config_get_string(main->Config(), "Output",
+						   "FilenameFormatting");
+		overwriteIfExists = config_get_bool(main->Config(), "Output",
+						    "OverwriteIfExists");
+
+		auto recordingFilename = GetRecordingFilename(
+			path, "flv", noSpace, overwriteIfExists, filenameFormat, false);
+
+		OBSDataAutoRelease settings = obs_data_create();
+		obs_data_set_string(settings, "path", recordingFilename.c_str());
+		obs_output_update(fileOutput[0], settings);
 	}
 
-	for (int i = 0; i < MAX_OUTPUT_VIDEO_ENCODERS; i++) {
+	for (int i = 0; i < (flvOutput ? 1 : MAX_OUTPUT_VIDEO_ENCODERS); i++) {
 		if (!videoStreaming[i])
 			continue;
 
