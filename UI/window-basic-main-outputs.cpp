@@ -1620,6 +1620,8 @@ AdvancedOutput::AdvancedOutput(OBSBasic *main_) : BasicOutputHandler(main_)
 		      "(advanced output)";
 	obs_encoder_release(videoStreaming);
 
+	obs_encoder_set_skip_frames(videoStreaming, 1);
+
 	const char *rate_control = obs_data_get_string(
 		useStreamEncoder ? streamEncSettings : recordEncSettings,
 		"rate_control");
