@@ -2126,7 +2126,7 @@ static void hook_data_capture(struct obs_output *output, bool encoded,
 	} else {
 		if (has_video)
 			start_raw_video(output->video,
-					get_raw_video_conversion(output),
+					get_raw_video_conversion(output), 0,
 					default_raw_video_callback, output);
 		if (has_audio)
 			start_raw_audio(output);
