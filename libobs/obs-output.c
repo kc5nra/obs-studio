@@ -1470,6 +1470,14 @@ static inline void send_interleaved(struct obs_output *output)
 	da_erase(output->interleaved_packets, 0);
 
 	if (out.type == OBS_ENCODER_VIDEO) {
+		blog(LOG_INFO,
+		     "interleaved: encoder: %s, dts: %" PRId64 ", pts: %" PRId64
+		     ", dts_usec: % " PRId64,
+		     obs_encoder_get_name(out.encoder), out.dts, out.pts,
+		     out.dts_usec);
+	}
+
+	if (out.type == OBS_ENCODER_VIDEO) {
 		output->total_frames++;
 
 		pthread_mutex_lock(&output->caption_mutex);
@@ -1905,6 +1913,14 @@ static void interleave_packets(void *data, struct encoder_packet *packet)
 		apply_interleaved_packet_offset(output, &out);
 	else
 		check_received(output, packet);
+
+	if (out.type == OBS_ENCODER_VIDEO) {
+		blog(LOG_INFO,
+		     "encoder: %s, dts: %" PRId64 ", pts: %" PRId64
+		     ", dts_usec: % " PRId64,
+		     obs_encoder_get_name(out.encoder), out.dts, out.pts,
+		     packet->dts_usec);
+	}
 
 	insert_interleaved_packet(output, &out);
 	set_higher_ts(output, &out);
