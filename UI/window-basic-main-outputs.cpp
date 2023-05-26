@@ -1548,8 +1548,10 @@ inline void AdvancedOutput::SetupStreaming()
 	// HACK!!! Setup multiple video encoders
 	obs_encoder_set_scaled_size(videoStreaming[1], 1280, 720);
 	obs_encoder_set_video(videoStreaming[1], obs_get_video());
+	obs_encoder_set_skip_frames(videoStreaming[1], 1);
 	obs_encoder_set_scaled_size(videoStreaming[2], 852, 480);
 	obs_encoder_set_video(videoStreaming[2], obs_get_video());
+	obs_encoder_set_skip_frames(videoStreaming[2], 3);
 
 	const char *id = obs_service_get_id(main->GetService());
 	if (strcmp(id, "rtmp_custom") == 0) {
