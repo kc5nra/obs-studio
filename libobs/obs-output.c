@@ -1307,8 +1307,8 @@ static inline void check_received(struct obs_output *output,
 				  struct encoder_packet *out)
 {
 	if (out->type == OBS_ENCODER_VIDEO) {
-		if (!output->received_video)
-			output->received_video = true;
+		if (!output->received_video[out->track_idx])
+			output->received_video[out->track_idx] = true;
 	} else {
 		if (!output->received_audio)
 			output->received_audio = true;
@@ -1343,10 +1343,19 @@ static inline void apply_interleaved_packet_offset(struct obs_output *output,
 static inline bool has_higher_opposing_ts(struct obs_output *output,
 					  struct encoder_packet *packet)
 {
-	if (packet->type == OBS_ENCODER_VIDEO)
-		return output->highest_audio_ts > packet->dts_usec;
-	else
-		return output->highest_video_ts > packet->dts_usec;
+	bool has_higher = true;
+
+	for (size_t i = 0; i < MAX_OUTPUT_VIDEO_ENCODERS; i++) {
+		if (!output->video_encoders[i] || (packet->type == OBS_ENCODER_VIDEO && i == packet->track_idx))
+			continue;
+		has_higher = has_higher &&
+			     output->highest_video_ts[i] > packet->dts_usec;
+	}
+
+	return packet->type == OBS_ENCODER_AUDIO
+		       ? has_higher
+		       : (has_higher &&
+			  output->highest_audio_ts > packet->dts_usec);
 }
 
 static const uint8_t nal_start[4] = {0, 0, 0, 1};
@@ -1500,8 +1509,8 @@ static inline void set_higher_ts(struct obs_output *output,
 				 struct encoder_packet *packet)
 {
 	if (packet->type == OBS_ENCODER_VIDEO) {
-		if (output->highest_video_ts < packet->dts_usec)
-			output->highest_video_ts = packet->dts_usec;
+		if (output->highest_video_ts[packet->track_idx] < packet->dts_usec)
+			output->highest_video_ts[packet->track_idx] = packet->dts_usec;
 	} else {
 		if (output->highest_audio_ts < packet->dts_usec)
 			output->highest_audio_ts = packet->dts_usec;
@@ -1556,7 +1565,8 @@ static int prune_premature_packets(struct obs_output *output)
 
 	video_idx = find_first_packet_type_idx(output, OBS_ENCODER_VIDEO, 0);
 	if (video_idx == -1) {
-		output->received_video = false;
+		// this shouldn't be needed because received_video should be false?
+		// output->received_video = false;
 		return -1;
 	}
 
@@ -1688,7 +1698,7 @@ static bool get_audio_and_video_packets(struct obs_output *output,
 			video[i] = find_first_packet_type(output,
 							  OBS_ENCODER_VIDEO, i);
 			if (!video[i]) {
-				output->received_video = false;
+				output->received_video[i] = false;
 				return false;
 			} else {
 				found_video = true;
@@ -1777,7 +1787,10 @@ static bool initialize_interleaved_packets(struct obs_output *output)
 
 	/* subtract offsets from highest TS offset variables */
 	output->highest_audio_ts -= audio[first_audio_idx]->dts_usec;
-	output->highest_video_ts -= video[first_video_idx]->dts_usec;
+
+	for (size_t i = 0; i < MAX_OUTPUT_VIDEO_ENCODERS; i++) {
+		output->highest_video_ts[i] -= video[i]->dts_usec;
+	}
 
 	/* apply new offsets to all existing packet DTS/PTS values */
 	for (size_t i = 0; i < output->interleaved_packets.num; i++) {
@@ -1854,6 +1867,7 @@ static void interleave_packets(void *data, struct encoder_packet *packet)
 	struct obs_output *output = data;
 	struct encoder_packet out;
 	bool was_started;
+	bool received_video;
 
 	if (!active(output))
 		return;
@@ -1863,7 +1877,7 @@ static void interleave_packets(void *data, struct encoder_packet *packet)
 	pthread_mutex_lock(&output->interleaved_mutex);
 
 	/* if first video frame is not a keyframe, discard until received */
-	if (!output->received_video && packet->type == OBS_ENCODER_VIDEO &&
+	if (packet->type == OBS_ENCODER_VIDEO && !output->received_video[packet->track_idx] && 
 	    !packet->keyframe) {
 		discard_unused_audio_packets(output, packet->dts_usec);
 		pthread_mutex_unlock(&output->interleaved_mutex);
@@ -1873,7 +1887,14 @@ static void interleave_packets(void *data, struct encoder_packet *packet)
 		return;
 	}
 
-	was_started = output->received_audio && output->received_video;
+	received_video = true;
+	for (size_t i = 0; i < MAX_OUTPUT_VIDEO_ENCODERS; i++) {
+		if (output->video_encoders[i])
+			received_video = received_video &&
+					 output->received_video[i];
+	}
+
+	was_started = output->received_audio && received_video;
 
 	if (output->active_delay_ns)
 		out = *packet;
@@ -1888,9 +1909,16 @@ static void interleave_packets(void *data, struct encoder_packet *packet)
 	insert_interleaved_packet(output, &out);
 	set_higher_ts(output, &out);
 
+	received_video = true;
+	for (size_t i = 0; i < MAX_OUTPUT_VIDEO_ENCODERS; i++) {
+		if (output->video_encoders[i])
+			received_video = received_video &&
+					 output->received_video[i];
+	}
+
 	/* when both video and audio have been received, we're ready
 	 * to start sending out packets (one at a time) */
-	if (output->received_audio && output->received_video) {
+	if (output->received_audio && received_video) {
 		if (!was_started) {
 			if (prune_interleaved_packets(output)) {
 				if (initialize_interleaved_packets(output)) {
@@ -2073,12 +2101,13 @@ static inline void start_raw_audio(obs_output_t *output)
 static void reset_packet_data(obs_output_t *output)
 {
 	output->received_audio = false;
-	output->received_video = false;
 	output->highest_audio_ts = 0;
-	output->highest_video_ts = 0;
 
-	for (size_t i = 0; i < MAX_OUTPUT_VIDEO_ENCODERS; i++)
+	for (size_t i = 0; i < MAX_OUTPUT_VIDEO_ENCODERS; i++) {
+		output->received_video[i] = false;
 		output->video_offsets[i] = 0;
+		output->highest_video_ts[i] = 0;
+	}
 	for (size_t i = 0; i < MAX_OUTPUT_AUDIO_ENCODERS; i++)
 		output->audio_offsets[i] = 0;
 
