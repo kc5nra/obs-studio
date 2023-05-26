@@ -1775,9 +1775,12 @@ inline void AdvancedOutput::SetupFFmpeg()
 
 inline void AdvancedOutput::SetupFLV()
 {
-	for (size_t i = 0; i < 3; i++)
-		obs_output_set_video_encoder2(fileOutput[0], videoStreaming[i],
+	for (size_t i = 0; i < MAX_OUTPUT_VIDEO_ENCODERS; i++) {
+		if (videoStreaming[i])
+			obs_output_set_video_encoder2(fileOutput[0], videoStreaming[i],
 					      i);
+	}
+
 	obs_output_set_audio_encoder(fileOutput[0], aacTrack[0], 0);
 }
 
