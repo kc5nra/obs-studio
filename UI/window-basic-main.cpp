@@ -99,7 +99,7 @@
 
 
 #include "remote-text.hpp"
-#define ENCODE_REMOTE_URL "http://localhost:8787/"
+#define ENCODE_REMOTE_URL "http://127.0.0.1:8787/api/v3/GetClientConfiguration"
 
 using namespace json11;
 using namespace std;
