@@ -257,10 +257,6 @@ static void obs_encoder_actually_destroy(obs_encoder_t *encoder)
 
 		free_audio_buffers(encoder);
 
-		// HACK!!!
-		gs_texture_destroy(encoder->scaled_input.tex);
-		gs_texture_destroy(encoder->scaled_input.tex_uv);
-
 		if (encoder->context.data)
 			encoder->info.destroy(encoder->context.data);
 		da_free(encoder->callbacks);
@@ -703,50 +699,6 @@ void obs_encoder_set_scaled_size(obs_encoder_t *encoder, uint32_t width,
 
 	encoder->scaled_width = width;
 	encoder->scaled_height = height;
-
-#ifdef _WIN32
-	// HACK!!! Create scaled input encoder texture if needed
-	struct obs_core_video_mix *video = get_mix_for_video(encoder->media);
-
-	if (obs_encoder_scaling_enabled(encoder) && encoder->scaled_input.tex == NULL) {
-		gs_texture_t *tex = NULL;
-		gs_texture_t *tex_uv = NULL;
-
-		obs_enter_graphics();
-		pthread_mutex_lock(&video->gpu_encoder_mutex);
-
-		if (obs_encoder_get_preferred_video_format(encoder) == VIDEO_FORMAT_P010) {
-			gs_texture_create_p010(
-				&tex, &tex_uv, obs_encoder_get_width(encoder),
-				obs_encoder_get_height(encoder),
-				GS_RENDER_TARGET | GS_SHARED_KM_TEX);
-		} else {
-			gs_texture_create_nv12(
-				&tex, &tex_uv, obs_encoder_get_width(encoder),
-				obs_encoder_get_height(encoder),
-				GS_RENDER_TARGET | GS_SHARED_KM_TEX);
-		}
-		if (!tex) {
-			blog(LOG_ERROR,
-			     "encoder '%s': Failed to create scaled input texture ",
-			     obs_encoder_get_name(encoder));
-		}
-
-		uint32_t handle = gs_texture_get_shared_handle(tex);
-
-		encoder->scaled_input.tex = tex;
-		encoder->scaled_input.tex_uv = tex_uv;
-		encoder->scaled_input.handle = handle;
-
-		// HACK!!! Why does this happen in obs-video.c -> queue_frame() ???
-		encoder->scaled_input.count = 1;
-		encoder->scaled_input.released = true;
-		gs_texture_release_sync(encoder->scaled_input.tex, ++encoder->scaled_input.lock_key);
-
-		pthread_mutex_unlock(&video->gpu_encoder_mutex);
-		obs_leave_graphics();
-#endif
-	}
 }
 
 bool obs_encoder_set_skip_frames(obs_encoder_t *encoder, uint32_t skip_frames)

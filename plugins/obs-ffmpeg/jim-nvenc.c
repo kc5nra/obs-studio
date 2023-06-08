@@ -452,9 +452,8 @@ static bool init_encoder_base(struct nvenc_data *enc, obs_data_t *settings,
 	video_t *video = obs_encoder_video(enc->encoder);
 	const struct video_output_info *voi = video_output_get_info(video);
 
-	// HACK!!! Use specified scaled width/height
-	enc->cx = obs_encoder_get_width(enc->encoder);
-	enc->cy = obs_encoder_get_height(enc->encoder);
+	enc->cx = voi->width;
+	enc->cy = voi->height;
 
 	/* -------------------------- */
 	/* get preset                 */
@@ -587,7 +586,7 @@ static bool init_encoder_base(struct nvenc_data *enc, obs_data_t *settings,
 
 	NV_ENC_CONFIG *config = &enc->config;
 
-	initialize_params(enc, &nv_preset, nv_tuning, enc->cx, enc->cy,
+	initialize_params(enc, &nv_preset, nv_tuning, voi->width, voi->height,
 			  voi->fps_num, voi->fps_den);
 
 	config->gopLength = gop_size;
@@ -1129,11 +1128,10 @@ static void *nvenc_create_base(enum codec_type codec, obs_data_t *settings,
 		goto reroute;
 	}
 
-	// HACK!!! Allow scaling
 	if (obs_encoder_scaling_enabled(encoder)) {
 		blog(LOG_INFO,
-		     "[jim-nvenc] scaling enabled");
-		//goto reroute;
+		     "[jim-nvenc] scaling enabled, falling back to ffmpeg");
+		goto reroute;
 	}
 
 	if (!obs_p010_tex_active() && !obs_nv12_tex_active()) {
