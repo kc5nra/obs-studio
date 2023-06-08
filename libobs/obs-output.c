@@ -1346,7 +1346,9 @@ static inline bool has_higher_opposing_ts(struct obs_output *output,
 	bool has_higher = true;
 
 	for (size_t i = 0; i < MAX_OUTPUT_VIDEO_ENCODERS; i++) {
-		if (!output->video_encoders[i] || (packet->type == OBS_ENCODER_VIDEO && i == packet->track_idx))
+		if (!output->video_encoders[i] ||
+		    (packet->type == OBS_ENCODER_VIDEO &&
+		     i == packet->track_idx))
 			continue;
 		has_higher = has_higher &&
 			     output->highest_video_ts[i] > packet->dts_usec;
@@ -1517,8 +1519,10 @@ static inline void set_higher_ts(struct obs_output *output,
 				 struct encoder_packet *packet)
 {
 	if (packet->type == OBS_ENCODER_VIDEO) {
-		if (output->highest_video_ts[packet->track_idx] < packet->dts_usec)
-			output->highest_video_ts[packet->track_idx] = packet->dts_usec;
+		if (output->highest_video_ts[packet->track_idx] <
+		    packet->dts_usec)
+			output->highest_video_ts[packet->track_idx] =
+				packet->dts_usec;
 	} else {
 		if (output->highest_audio_ts < packet->dts_usec)
 			output->highest_audio_ts = packet->dts_usec;
@@ -1885,8 +1889,8 @@ static void interleave_packets(void *data, struct encoder_packet *packet)
 	pthread_mutex_lock(&output->interleaved_mutex);
 
 	/* if first video frame is not a keyframe, discard until received */
-	if (packet->type == OBS_ENCODER_VIDEO && !output->received_video[packet->track_idx] && 
-	    !packet->keyframe) {
+	if (packet->type == OBS_ENCODER_VIDEO &&
+	    !output->received_video[packet->track_idx] && !packet->keyframe) {
 		discard_unused_audio_packets(output, packet->dts_usec);
 		pthread_mutex_unlock(&output->interleaved_mutex);
 

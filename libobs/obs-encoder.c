@@ -303,8 +303,9 @@ static void add_connection(struct obs_encoder *encoder)
 		if (gpu_encode_available(encoder)) {
 			start_gpu_encode(encoder);
 		} else {
-			start_raw_video(encoder->media, &info, encoder->fps_skip_frames,
-				        receive_video, encoder);
+			start_raw_video(encoder->media, &info,
+					encoder->fps_skip_frames, receive_video,
+					encoder);
 		}
 	}
 
@@ -1226,7 +1227,8 @@ bool do_encode(struct obs_encoder *encoder, struct encoder_frame *frame)
 				     encoder->context.settings);
 	}
 
-	pkt.timebase_num = encoder->timebase_num * (encoder->fps_skip_frames + 1);
+	pkt.timebase_num =
+		encoder->timebase_num * (encoder->fps_skip_frames + 1);
 	pkt.timebase_den = encoder->timebase_den;
 	pkt.encoder = encoder;
 
