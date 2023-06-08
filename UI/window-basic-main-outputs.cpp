@@ -1544,14 +1544,20 @@ inline void AdvancedOutput::SetupStreaming()
 
 	obs_output_set_audio_encoder(streamOutput, streamAudioEnc, 0);
 	obs_encoder_set_scaled_size(videoStreaming[0], cx, cy);
+	obs_encoder_enable_gpu_scaling(videoStreaming[0], true,
+				       OBS_SCALE_BICUBIC);
 
 	// HACK!!! Setup multiple video encoders
 	obs_encoder_set_scaled_size(videoStreaming[1], 1280, 720);
 	obs_encoder_set_video(videoStreaming[1], obs_get_video());
 	obs_encoder_set_skip_frames(videoStreaming[1], 1);
+	obs_encoder_enable_gpu_scaling(videoStreaming[1], true,
+				       OBS_SCALE_BICUBIC);
 	obs_encoder_set_scaled_size(videoStreaming[2], 852, 480);
 	obs_encoder_set_video(videoStreaming[2], obs_get_video());
 	obs_encoder_set_skip_frames(videoStreaming[2], 3);
+	obs_encoder_enable_gpu_scaling(videoStreaming[2], true,
+				       OBS_SCALE_BICUBIC);
 
 	const char *id = obs_service_get_id(main->GetService());
 	if (strcmp(id, "rtmp_custom") == 0) {
