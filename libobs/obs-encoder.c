@@ -282,6 +282,7 @@ static void maybe_set_gpu_video_media(struct obs_encoder *encoder)
 		obs_free_video_mix(mix);
 	} else {
 		da_push_back(obs->video.mixes, &mix);
+		blog(LOG_INFO, "number of mixes: %d", obs->video.mixes.num);
 		obs_encoder_set_video(encoder, mix->video);
 	}
 
