@@ -2393,6 +2393,12 @@ EXPORT uint32_t obs_encoder_get_width(const obs_encoder_t *encoder);
 /** For video encoders, returns the height of the encoded image */
 EXPORT uint32_t obs_encoder_get_height(const obs_encoder_t *encoder);
 
+/** For video encoders, returns whether GPU scaling is enabled */
+EXPORT bool obs_encoder_gpu_scaling_enabled(obs_encoder_t *encoder);
+
+/** For video encoders, returns GPU scaling type */
+EXPORT enum obs_scale_type obs_encoder_get_scale_type(obs_encoder_t *encoder);
+
 EXPORT uint32_t obs_encoder_get_skip_frames(const obs_encoder_t *encoder);
 
 /** For audio encoders, returns the sample rate of the audio */

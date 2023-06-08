@@ -929,6 +929,36 @@ uint32_t obs_encoder_get_height(const obs_encoder_t *encoder)
 		       : video_output_get_height(encoder->media);
 }
 
+bool obs_encoder_gpu_scaling_enabled(obs_encoder_t *encoder)
+{
+	if (!obs_encoder_valid(encoder, "obs_encoder_gpu_scaling_enabled"))
+		return 0;
+	if (encoder->info.type != OBS_ENCODER_VIDEO) {
+		blog(LOG_WARNING,
+		     "obs_encoder_gpu_scaling_enabled: "
+		     "encoder '%s' is not a video encoder",
+		     obs_encoder_get_name(encoder));
+		return 0;
+	}
+
+	return encoder->gpu_scaling_enabled;
+}
+
+enum obs_scale_type obs_encoder_get_scale_type(obs_encoder_t *encoder)
+{
+	if (!obs_encoder_valid(encoder, "obs_encoder_get_scale_type"))
+		return 0;
+	if (encoder->info.type != OBS_ENCODER_VIDEO) {
+		blog(LOG_WARNING,
+		     "obs_encoder_get_scale_type: "
+		     "encoder '%s' is not a video encoder",
+		     obs_encoder_get_name(encoder));
+		return 0;
+	}
+
+	return encoder->scale_type;
+}
+
 uint32_t obs_encoder_get_skip_frames(const obs_encoder_t *encoder)
 {
 	if (!obs_encoder_valid(encoder, "obs_encoder_set_skip_frames"))
