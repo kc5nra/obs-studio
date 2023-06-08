@@ -2368,6 +2368,13 @@ EXPORT void obs_encoder_set_scaled_size(obs_encoder_t *encoder, uint32_t width,
 					uint32_t height);
 
 /**
+ * Enable GPU based scaling for a video encoder. If the encoder is active,
+ * this function will trigger a warning, and do nothing.
+ */
+EXPORT void obs_encoder_enable_gpu_scaling(obs_encoder_t *encoder, bool enable,
+					   enum obs_scale_type scale_type);
+
+/**
  * Set number of "skip" frames for a video encoder. Skipped frames allow recording
  * at a partial frame rate compared to the base frame rate, e.g. 60 FPS with
  * skip_frames = 1 will record at 30 FPS, with skip_frames = 2 at 20, etc.
