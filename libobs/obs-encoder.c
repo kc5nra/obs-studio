@@ -184,6 +184,14 @@ static inline bool gpu_encode_available(const struct obs_encoder *encoder)
 	       (video->using_p010_tex || video->using_nv12_tex);
 }
 
+static const char *maybe_set_gpu_video_media_profile =
+	"maybe_set_gpu_video_media";
+static const char *maybe_set_gpu_video_media_find_mix_pre_create =
+	"find_mix_pre_create";
+static const char *maybe_set_gpu_video_media_create_mix = "create_mix";
+static const char *maybe_set_gpu_video_media_find_mix_post_create =
+	"find_mix_post_create";
+
 static void maybe_set_gpu_video_media(struct obs_encoder *encoder)
 {
 	struct obs_core_video_mix *mix = NULL;
@@ -194,14 +202,17 @@ static void maybe_set_gpu_video_media(struct obs_encoder *encoder)
 	if (!encoder->media)
 		return;
 
+	profile_start(maybe_set_gpu_video_media_profile);
+
 	info = video_output_get_info(encoder->media);
 
 	if (encoder->gpu_scale_type == OBS_SCALE_DISABLE)
-		return;
+		goto maybe_set_gpu_video_media_profiler_end;
 
 	if (!encoder->scaled_height && !encoder->scaled_width)
-		return;
+		goto maybe_set_gpu_video_media_profiler_end;
 
+	profile_start(maybe_set_gpu_video_media_find_mix_pre_create);
 	pthread_mutex_lock(&obs->video.mixes_mutex);
 	for (size_t i = 0; i < obs->video.mixes.num; i++) {
 		struct obs_core_video_mix *current = obs->video.mixes.array[i];
@@ -224,6 +235,7 @@ static void maybe_set_gpu_video_media(struct obs_encoder *encoder)
 		create_mix = false;
 		break;
 	}
+	profile_end(maybe_set_gpu_video_media_find_mix_pre_create);
 
 	if (!obs->video.main_mix) {
 		create_mix = false;
@@ -234,7 +246,9 @@ static void maybe_set_gpu_video_media(struct obs_encoder *encoder)
 	pthread_mutex_unlock(&obs->video.mixes_mutex);
 
 	if (!create_mix)
-		return;
+		goto maybe_set_gpu_video_media_profiler_end;
+
+	profile_start(maybe_set_gpu_video_media_create_mix);
 
 	ovi.output_format = info->format;
 	ovi.colorspace = info->colorspace;
@@ -247,13 +261,18 @@ static void maybe_set_gpu_video_media(struct obs_encoder *encoder)
 	ovi.gpu_conversion = true;
 
 	mix = obs_create_video_mix(&ovi);
-	if (!mix)
-		return;
+	if (!mix) {
+		profile_end(maybe_set_gpu_video_media_create_mix);
+		goto maybe_set_gpu_video_media_profiler_end;
+	}
 
 	mix->encoder_only_mix = true;
 	mix->encoder_refs = 1;
 	mix->view = &obs->data.main_view;
 
+	profile_end(maybe_set_gpu_video_media_create_mix);
+
+	profile_start(maybe_set_gpu_video_media_find_mix_post_create);
 	pthread_mutex_lock(&obs->video.mixes_mutex);
 
 	// double check that nobody else added a matching mix while we've created our mix
@@ -277,6 +296,7 @@ static void maybe_set_gpu_video_media(struct obs_encoder *encoder)
 		create_mix = false;
 		break;
 	}
+	profile_end(maybe_set_gpu_video_media_find_mix_post_create);
 
 	if (!create_mix) {
 		obs_free_video_mix(mix);
@@ -286,6 +306,9 @@ static void maybe_set_gpu_video_media(struct obs_encoder *encoder)
 	}
 
 	pthread_mutex_unlock(&obs->video.mixes_mutex);
+
+maybe_set_gpu_video_media_profiler_end:
+	profile_end(maybe_set_gpu_video_media_profile);
 }
 
 static void add_connection(struct obs_encoder *encoder)

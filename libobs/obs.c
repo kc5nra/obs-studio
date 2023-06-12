@@ -665,6 +665,10 @@ static inline void set_video_matrix(struct obs_core_video_mix *video,
 	memcpy(video->color_matrix, &mat, sizeof(float) * 16);
 }
 
+static const char *video_mix_copy_fps = "copy_fps";
+static const char *video_mix_open_output = "open_output";
+static const char *video_mix_lock_gpu = "lock_gpu";
+static const char *video_mix_create_gpu_resources = "create_gpu_resources";
 static int obs_init_video_mix(struct obs_video_info *ovi,
 			      struct obs_core_video_mix *video)
 {
@@ -677,6 +681,7 @@ static int obs_init_video_mix(struct obs_video_info *ovi,
 
 	/* main view graphics thread drives all frame output,
 	 * so share FPS settings for aux views */
+	profile_start(video_mix_copy_fps);
 	pthread_mutex_lock(&obs->video.mixes_mutex);
 	size_t num = obs->video.mixes.num;
 	if (num && obs->video.main_mix) {
@@ -685,6 +690,7 @@ static int obs_init_video_mix(struct obs_video_info *ovi,
 		video->ovi.fps_den = main_ovi.fps_den;
 	}
 	pthread_mutex_unlock(&obs->video.mixes_mutex);
+	profile_end(video_mix_copy_fps);
 
 	video->gpu_conversion = ovi->gpu_conversion;
 	video->gpu_was_active = false;
@@ -693,7 +699,9 @@ static int obs_init_video_mix(struct obs_video_info *ovi,
 
 	set_video_matrix(video, &vi);
 
+	profile_start(video_mix_open_output);
 	int errorcode = video_output_open(&video->video, &vi);
+	profile_end(video_mix_open_output);
 	if (errorcode != VIDEO_OUTPUT_SUCCESS) {
 		if (errorcode == VIDEO_OUTPUT_INVALIDPARAM) {
 			blog(LOG_ERROR, "Invalid video parameters specified");
@@ -707,26 +715,37 @@ static int obs_init_video_mix(struct obs_video_info *ovi,
 	if (pthread_mutex_init(&video->gpu_encoder_mutex, NULL) < 0)
 		return OBS_VIDEO_FAIL;
 
+	profile_start(video_mix_lock_gpu);
 	gs_enter_context(obs->video.graphics);
+	profile_end(video_mix_lock_gpu);
 
-	if (video->gpu_conversion && !obs_init_gpu_conversion(video))
+	profile_start(video_mix_create_gpu_resources);
+	if (video->gpu_conversion && !obs_init_gpu_conversion(video)) {
+		profile_end(video_mix_create_gpu_resources);
 		return OBS_VIDEO_FAIL;
-	if (!obs_init_textures(video))
+	}
+	if (!obs_init_textures(video)) {
+		profile_end(video_mix_create_gpu_resources);
 		return OBS_VIDEO_FAIL;
+	}
+	profile_end(video_mix_create_gpu_resources);
 
 	gs_leave_context();
 
 	return OBS_VIDEO_SUCCESS;
 }
 
+static const char *obs_create_video_mix_profile = "obs_create_video_mix";
 struct obs_core_video_mix *obs_create_video_mix(struct obs_video_info *ovi)
 {
+	profile_start(obs_create_video_mix_profile);
 	struct obs_core_video_mix *video =
 		bzalloc(sizeof(struct obs_core_video_mix));
 	if (obs_init_video_mix(ovi, video) != OBS_VIDEO_SUCCESS) {
 		bfree(video);
 		video = NULL;
 	}
+	profile_end(obs_create_video_mix_profile);
 	return video;
 }
 
