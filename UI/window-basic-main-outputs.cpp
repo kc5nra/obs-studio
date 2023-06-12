@@ -1776,6 +1776,7 @@ inline void AdvancedOutput::SetupStreaming()
 
 	obs_output_set_audio_encoder(streamOutput, streamAudioEnc, 0);
 	obs_encoder_set_scaled_size(videoStreaming, cx, cy);
+	obs_encoder_set_gpu_scale_type(videoStreaming, OBS_SCALE_BICUBIC);
 
 	const char *id = obs_service_get_id(main->GetService());
 	if (strcmp(id, "rtmp_custom") == 0) {
