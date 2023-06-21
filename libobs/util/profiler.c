@@ -10,7 +10,9 @@
 
 #include <zlib.h>
 
+#ifdef TRACY_ENABLE
 #include <tracy/TracyC.h>
+#endif
 
 //#define TRACK_OVERHEAD
 
@@ -290,7 +292,11 @@ void profiler_stop(void)
 
 void profile_set_thread_name(const char *name)
 {
+#ifdef TRACY_ENABLE
 	TracyCSetThreadName(name);
+#else
+	(void)name;
+#endif
 }
 
 void profile_reenable_thread(void)
@@ -446,7 +452,7 @@ profile_start_with_info_light(const char *name,
 	return PACK_CONTEXT(ctx);
 #else
 	UNUSED_PARAMETER(data);
-	return NULL;
+	return NULL_CONTEXT;
 #endif
 }
 
@@ -529,7 +535,9 @@ void profile_plot(const char *name, double value)
 
 void profile_mark_render_frame()
 {
+#ifdef TRACY_ENABLE
 	TracyCFrameMark;
+#endif
 }
 
 void profile_mark_frame(const char *name)
