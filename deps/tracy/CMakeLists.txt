@@ -14,10 +14,14 @@ FetchContent_Declare(
   GIT_TAG v0.9.1
   FIND_PACKAGE_ARGS)
 
+if(NOT OS_WINDOWS)
 set(CMAKE_CXX_FLAGS_OLD "${CMAKE_CXX_FLAGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-parameter -Wno-deprecated-declarations")
+endif()
 FetchContent_MakeAvailable(Tracy)
+if(NOT OS_WINDOWS)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_OLD}")
+endif()
 
 add_library(tracy_interface INTERFACE)
 add_library(OBS::tracy_interface ALIAS tracy_interface)
